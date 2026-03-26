@@ -1,0 +1,73 @@
+{
+  "name": "Email-to-Quote ML Pipeline",
+  "tasks": [
+    {
+      "task_key": "feature_engineering",
+      "description": "Build org-level feature table from all source tables",
+      "notebook_task": {
+        "notebook_path": "/Users/david.vincent@databricks.com/email_to_quote/ml_pipeline/01_feature_engineering",
+        "source": "WORKSPACE"
+      },
+      "environment_key": "default_env",
+      "timeout_seconds": 3600
+    },
+    {
+      "task_key": "automl_training",
+      "description": "Train risk models using Databricks AutoML",
+      "depends_on": [{"task_key": "feature_engineering"}],
+      "notebook_task": {
+        "notebook_path": "/Users/david.vincent@databricks.com/email_to_quote/ml_pipeline/02_automl_training",
+        "source": "WORKSPACE"
+      },
+      "environment_key": "default_env",
+      "timeout_seconds": 7200
+    },
+    {
+      "task_key": "model_registration",
+      "description": "Register best models in Unity Catalog with Champion/Challenger",
+      "depends_on": [{"task_key": "automl_training"}],
+      "notebook_task": {
+        "notebook_path": "/Users/david.vincent@databricks.com/email_to_quote/ml_pipeline/03_model_registration",
+        "source": "WORKSPACE"
+      },
+      "environment_key": "default_env",
+      "timeout_seconds": 1800
+    },
+    {
+      "task_key": "model_serving",
+      "description": "Deploy real-time serving endpoint",
+      "depends_on": [{"task_key": "model_registration"}],
+      "notebook_task": {
+        "notebook_path": "/Users/david.vincent@databricks.com/email_to_quote/ml_pipeline/04_model_serving",
+        "source": "WORKSPACE"
+      },
+      "environment_key": "default_env",
+      "timeout_seconds": 3600
+    },
+    {
+      "task_key": "monitoring",
+      "description": "Set up Lakehouse Monitor with drift detection and business metrics",
+      "depends_on": [{"task_key": "model_serving"}],
+      "notebook_task": {
+        "notebook_path": "/Users/david.vincent@databricks.com/email_to_quote/ml_pipeline/05_monitoring",
+        "source": "WORKSPACE"
+      },
+      "environment_key": "default_env",
+      "timeout_seconds": 3600
+    }
+  ],
+  "environments": [
+    {
+      "environment_key": "default_env",
+      "spec": {
+        "client": "1"
+      }
+    }
+  ],
+  "tags": {
+    "project": "email_to_quote",
+    "domain": "commercial_insurance",
+    "pipeline": "ml_risk_scoring"
+  },
+  "max_concurrent_runs": 1
+}

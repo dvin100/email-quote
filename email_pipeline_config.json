@@ -1,0 +1,27 @@
+{
+  "name": "Email-to-Quote Ingestion Pipeline",
+  "catalog": "dvin100_email_to_quote",
+  "target": "email_to_quote",
+  "continuous": true,
+  "serverless": true,
+  "channel": "CURRENT",
+  "libraries": [
+    {
+      "notebook": {
+        "path": "/Users/david.vincent@databricks.com/email_to_quote/pipelines/pipeline_email_ingestion"
+      }
+    }
+  ],
+  "configuration": {
+    "pipelines.enableTrackHistory": "true"
+  },
+  "clusters": [
+    {
+      "label": "default",
+      "libraries": [
+        {"pypi": {"package": "fpdf2"}}
+      ]
+    }
+  ],
+  "edition": "ADVANCED"
+}

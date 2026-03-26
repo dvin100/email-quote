@@ -1,0 +1,7 @@
+data/
+app/app.yaml
+app/frontend/node_modules/
+app/frontend/dist/
+__pycache__/
+*.pyc
+.DS_Store
