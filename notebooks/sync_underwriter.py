@@ -15,10 +15,12 @@ CATALOG = "dvin100_email_to_quote"
 SCHEMA = "email_to_quote"
 TABLE = "underwriter"
 
-LAKEBASE_HOST = "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com"
-LAKEBASE_USER = "fc0bfb5f-6069-4a8f-b4ce-84cc19949784"
-LAKEBASE_PASSWORD = "BricksH0use!Ins2026#"
-LAKEBASE_DB = "databricks_postgres"
+import os
+
+LAKEBASE_HOST = os.environ.get("LAKEBASE_HOST", "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com")
+LAKEBASE_USER = os.environ["LAKEBASE_USER"]
+LAKEBASE_PASSWORD = os.environ["LAKEBASE_PASSWORD"]
+LAKEBASE_DB = os.environ.get("LAKEBASE_DB", "databricks_postgres")
 LAKEBASE_SCHEMA = "email_to_quote"
 
 # COMMAND ----------
