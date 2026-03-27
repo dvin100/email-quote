@@ -195,7 +195,23 @@ def _execute_write(query: str, params: tuple | None = None) -> None:
 # ---------------------------------------------------------------------------
 # SQL query
 # ---------------------------------------------------------------------------
-QUOTES_QUERY = """
+_has_response_email_table: bool | None = None
+
+
+def _check_response_email_table() -> bool:
+    """Check if lb_pipe_response_email table exists in Lakebase."""
+    global _has_response_email_table
+    if _has_response_email_table is not None:
+        return _has_response_email_table
+    try:
+        _execute_query("SELECT 1 FROM lb_pipe_response_email LIMIT 0")
+        _has_response_email_table = True
+    except Exception:
+        _has_response_email_table = False
+    return _has_response_email_table
+
+
+_QUOTES_QUERY_BASE = """
 SELECT
     recv.email_id,
     recv.file_name,
@@ -209,7 +225,7 @@ SELECT
     parsed.num_employees,
     parsed.coverages_requested,
 
-    review.decision_tag,
+    COALESCE(uw.decision, review.decision_tag) AS decision_tag,
     review.risk_score,
     review.risk_band,
     review.review_summary,
@@ -222,6 +238,8 @@ SELECT
 
     completed.final_status,
 
+    {resp_cols}
+
     -- step booleans
     (recv.email_id IS NOT NULL)      AS step_received,
     (parsed.email_id IS NOT NULL)    AS step_parsed,
@@ -231,7 +249,8 @@ SELECT
     (review.email_id IS NOT NULL)    AS step_quote_review,
     (creation.email_id IS NOT NULL)  AS step_quote_creation,
     (pdf.email_id IS NOT NULL)       AS step_pdf_created,
-    (completed.email_id IS NOT NULL) AS step_completed
+    (completed.email_id IS NOT NULL) AS step_completed,
+    {resp_step}
 
 FROM lb_pipe_email_received recv
 LEFT JOIN lb_pipe_email_parsed    parsed   ON parsed.email_id   = recv.email_id
@@ -242,10 +261,30 @@ LEFT JOIN lb_pipe_quote_review    review   ON review.email_id   = recv.email_id
 LEFT JOIN lb_pipe_quote_creation  creation ON creation.email_id = recv.email_id
 LEFT JOIN lb_pipe_pdf_created     pdf      ON pdf.email_id      = recv.email_id
 LEFT JOIN lb_pipe_completed       completed ON completed.email_id = recv.email_id
+LEFT JOIN underwriter             uw       ON uw.email_id       = recv.email_id
+{resp_join}
 """
 
-QUOTES_ALL = QUOTES_QUERY + " ORDER BY recv.ingestion_timestamp DESC"
-QUOTES_BY_ID = QUOTES_QUERY + " WHERE recv.email_id = %s"
+
+def _build_quotes_query() -> str:
+    if _check_response_email_table():
+        return _QUOTES_QUERY_BASE.format(
+            resp_cols="resp.eml_file_name AS response_email_file,\n    resp.eml_write_status AS response_email_status,\n",
+            resp_step="(resp.email_id IS NOT NULL)      AS step_response_email",
+            resp_join="LEFT JOIN lb_pipe_response_email  resp     ON resp.email_id     = recv.email_id",
+        )
+    return _QUOTES_QUERY_BASE.format(
+        resp_cols="NULL AS response_email_file,\n    NULL AS response_email_status,\n",
+        resp_step="FALSE AS step_response_email",
+        resp_join="",
+    )
+
+def _quotes_all() -> str:
+    return _build_quotes_query() + " ORDER BY recv.ingestion_timestamp DESC"
+
+
+def _quotes_by_id() -> str:
+    return _build_quotes_query() + " WHERE recv.email_id = %s"
 
 
 def _format_quote(row: dict) -> dict:
@@ -274,6 +313,8 @@ def _format_quote(row: dict) -> dict:
         "pdf_path": row.get("pdf_path"),
         "pdf_status": row.get("pdf_status"),
         "final_status": row.get("final_status"),
+        "response_email_file": row.get("response_email_file"),
+        "response_email_status": row.get("response_email_status"),
         "steps": {
             "received": bool(row.get("step_received")),
             "parsed": bool(row.get("step_parsed")),
@@ -284,6 +325,7 @@ def _format_quote(row: dict) -> dict:
             "quote_creation": bool(row.get("step_quote_creation")),
             "pdf_created": bool(row.get("step_pdf_created")),
             "completed": bool(row.get("step_completed")),
+            "response_email": bool(row.get("step_response_email")),
         },
     }
 
@@ -332,11 +374,14 @@ async def lifespan(app: FastAPI):
     try:
         _get_pool()
         logger.info("Database pool created.")
-        # Verify underwriter table is accessible
         _execute_query("SELECT 1 FROM underwriter LIMIT 0")
         logger.info("Underwriter table ready.")
     except Exception as exc:
         logger.warning("Startup check: %s (underwriter table may need manual creation)", exc)
+    try:
+        _load_sample_emails_cache()
+    except Exception as exc:
+        logger.warning("Failed to pre-load sample emails cache: %s", exc)
     yield
     logger.info("Shutting down...")
     if pool is not None:
@@ -361,7 +406,7 @@ app.add_middleware(
 @app.get("/api/quotes")
 def get_quotes():
     """Return all quotes with pipeline progress."""
-    rows = _execute_query(QUOTES_ALL)
+    rows = _execute_query(_quotes_all())
     quotes = [_make_serializable(_format_quote(r)) for r in rows]
     return JSONResponse(content={"quotes": quotes})
 
@@ -369,7 +414,7 @@ def get_quotes():
 @app.get("/api/quotes/{email_id}")
 def get_quote(email_id: str):
     """Return detailed info for a single quote."""
-    rows = _execute_query(QUOTES_BY_ID, (email_id,))
+    rows = _execute_query(_quotes_by_id(), (email_id,))
     if not rows:
         raise HTTPException(status_code=404, detail="Quote not found")
     return JSONResponse(content=_make_serializable(_format_quote(rows[0])))
@@ -388,6 +433,7 @@ STEP_TABLES = {
     "quote_creation": "lb_pipe_quote_creation",
     "pdf_created": "lb_pipe_pdf_created",
     "completed": "lb_pipe_completed",
+    "response_email": "lb_pipe_response_email",
 }
 
 # Columns to exclude from step detail responses (too large / internal)
@@ -449,8 +495,10 @@ def get_pending_reviews():
     return JSONResponse(content=_make_serializable(rows))
 
 
-from pydantic import BaseModel
+import uuid as _uuid
+from datetime import datetime as _dt
 
+from pydantic import BaseModel
 
 class AskQuoteQuestion(BaseModel):
     email_id: str
@@ -618,6 +666,381 @@ underwriting@brickshouse-insurance.com
             logger.warning("Failed to write outgoing email: %s %s", resp.status_code, resp.text[:200])
     except Exception as exc:
         logger.warning("Could not write outgoing email: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Quote Response Email Generation
+# ---------------------------------------------------------------------------
+RESPONSE_EMAIL_QUERY = """
+SELECT
+    p.sender_name, p.sender_email, p.business_name, p.risk_category,
+    p.coverages_requested,
+    COALESCE(uw.decision, rev.decision_tag) AS decision_tag,
+    rev.risk_band, rev.review_summary,
+    c.quote_number, c.total_premium, c.effective_date, c.expiration_date,
+    c.gl_premium, c.property_building_premium, c.property_contents_premium,
+    c.wc_premium, c.auto_premium, c.cyber_premium, c.umbrella_premium,
+    c.policy_fees,
+    pdf.pdf_path,
+    comp.final_status
+FROM lb_pipe_email_received recv
+JOIN lb_pipe_email_parsed p ON p.email_id = recv.email_id
+LEFT JOIN lb_pipe_quote_review rev ON rev.email_id = recv.email_id
+LEFT JOIN lb_pipe_quote_creation c ON c.email_id = recv.email_id
+LEFT JOIN lb_pipe_pdf_created pdf ON pdf.email_id = recv.email_id
+LEFT JOIN lb_pipe_completed comp ON comp.email_id = recv.email_id
+LEFT JOIN underwriter uw ON uw.email_id = recv.email_id
+WHERE recv.email_id = %s
+"""
+
+
+def _generate_quote_response_email(email_id: str) -> dict:
+    """Generate a response email for a completed quote and save to outgoing_email volume."""
+    import uuid
+    from datetime import datetime
+
+    rows = _execute_query(RESPONSE_EMAIL_QUERY, (email_id,))
+    if not rows:
+        return {"status": "error", "message": "No quote data found"}
+
+    row = rows[0]
+    to_email = row.get("sender_email", "unknown@example.com")
+    to_name = row.get("sender_name", "Valued Client")
+    biz_name = row.get("business_name", "your organization")
+    decision = row.get("decision_tag", "")
+    quote_number = row.get("quote_number", "N/A")
+    total_premium = row.get("total_premium")
+    effective = row.get("effective_date")
+    expiration = row.get("expiration_date")
+    coverages = row.get("coverages_requested", "")
+    now = datetime.utcnow()
+
+    is_approved = decision in ("auto-approved", "uw-approved")
+    is_declined = decision in ("auto-declined", "uw-declined")
+
+    if is_approved and total_premium:
+        # Build coverage breakdown
+        coverage_lines = []
+        for label, key in [
+            ("General Liability", "gl_premium"),
+            ("Property - Building", "property_building_premium"),
+            ("Property - Contents", "property_contents_premium"),
+            ("Workers Compensation", "wc_premium"),
+            ("Commercial Auto", "auto_premium"),
+            ("Cyber Liability", "cyber_premium"),
+            ("Umbrella", "umbrella_premium"),
+        ]:
+            val = row.get(key)
+            if val and float(val) > 0:
+                coverage_lines.append(f"    {label:<30s}  ${float(val):>12,.2f}")
+
+        fees = row.get("policy_fees")
+        if fees and float(fees) > 0:
+            coverage_lines.append(f"    {'Policy Fees':<30s}  ${float(fees):>12,.2f}")
+        coverage_lines.append(f"    {'─' * 44}")
+        coverage_lines.append(f"    {'TOTAL ANNUAL PREMIUM':<30s}  ${float(total_premium):>12,.2f}")
+        coverage_block = "\n".join(coverage_lines)
+
+        eff_str = effective if effective else "Upon binding"
+        exp_str = expiration if expiration else "12 months from effective date"
+
+        subject = f"Your Commercial Insurance Quote {quote_number} - {biz_name}"
+        body = f"""Dear {to_name},
+
+Thank you for your commercial insurance quote request for {biz_name}.
+
+We are pleased to provide you with the following quote:
+
+╔══════════════════════════════════════════════════╗
+  QUOTE NUMBER:  {quote_number}
+  BUSINESS:      {biz_name}
+  EFFECTIVE:     {eff_str}
+  EXPIRATION:    {exp_str}
+╚══════════════════════════════════════════════════╝
+
+COVERAGE SUMMARY
+{coverage_block}
+
+COVERAGES INCLUDED: {coverages}
+
+NEXT STEPS:
+  1. Review the attached quote document for full terms and conditions
+  2. Contact us with any questions about coverage or pricing
+  3. To bind this policy, reply to this email with your confirmation
+
+This quote is valid for 30 days from the date of this email.
+
+We look forward to earning your business.
+
+Best regards,
+BricksHouse Insurance Underwriting Team
+underwriting@brickshouse-insurance.com
+Phone: (555) 123-4567
+"""
+    elif is_declined:
+        review_summary = row.get("review_summary", "")
+        subject = f"Quote Request Update - {biz_name}"
+        body = f"""Dear {to_name},
+
+Thank you for your commercial insurance quote request for {biz_name}.
+
+After careful review of your submission, we regret to inform you that we are unable to provide a quote at this time.
+
+{f"Our assessment: {review_summary}" if review_summary else ""}
+
+This decision was based on our current underwriting guidelines and risk appetite. We encourage you to:
+
+  1. Contact us to discuss what factors influenced this decision
+  2. Provide additional information that may help us reconsider
+  3. Reach out again in the future as our guidelines may change
+
+We appreciate your interest in BricksHouse Insurance and wish you the best in finding suitable coverage.
+
+Best regards,
+BricksHouse Insurance Underwriting Team
+underwriting@brickshouse-insurance.com
+Phone: (555) 123-4567
+"""
+    else:
+        return {"status": "error", "message": f"Quote not in a final state (decision: {decision})"}
+
+    eml = f"""From: underwriting@brickshouse-insurance.com
+To: {to_email}
+Subject: {subject}
+Date: {now.strftime('%a, %d %b %Y %H:%M:%S +0000')}
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+Message-ID: <{uuid.uuid4()}@brickshouse-insurance.com>
+
+{body}"""
+
+    # Write to outgoing_email volume
+    try:
+        import requests as _req
+        w = WorkspaceClient()
+        host = w.config.host
+        headers = dict(w.config.authenticate())
+        headers["Content-Type"] = "application/octet-stream"
+
+        vol_path = "/Volumes/dvin100_email_to_quote/email_to_quote/outgoing_email"
+        prefix = "quote" if is_approved else "declined"
+        file_name = f"{prefix}_{quote_number}_{email_id[:8]}_{now.strftime('%Y%m%d%H%M%S')}.eml"
+        upload_url = f"{host}/api/2.0/fs/files{vol_path}/{file_name}"
+        resp = _req.put(
+            upload_url,
+            headers=headers,
+            data=eml.encode("utf-8"),
+            timeout=15,
+        )
+        if resp.status_code in (200, 201):
+            logger.info("Response email written: %s/%s", vol_path, file_name)
+            return {
+                "status": "ok",
+                "file_name": file_name,
+                "volume_path": f"{vol_path}/{file_name}",
+                "decision": decision,
+                "to": to_email,
+            }
+        else:
+            logger.warning("Failed to write response email: %s %s", resp.status_code, resp.text[:200])
+            return {"status": "error", "message": f"Volume upload failed: {resp.status_code}"}
+    except Exception as exc:
+        logger.warning("Could not write response email: %s", exc)
+        return {"status": "error", "message": str(exc)}
+
+
+@app.post("/api/quotes/{email_id}/send-response")
+def send_quote_response(email_id: str):
+    """Generate and send a response email for a completed quote."""
+    result = _generate_quote_response_email(email_id)
+    if result.get("status") == "error":
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed"))
+    return JSONResponse(content=_make_serializable(result))
+
+
+# ---------------------------------------------------------------------------
+# Email Intake: sample emails & send
+# ---------------------------------------------------------------------------
+
+SAMPLE_EMAILS_ALL_SQL = """
+SELECT id, org_id, business_name, risk_category, risk_level,
+       sender_name, sender_email, num_employees, annual_revenue,
+       eml_content, body_preview, label
+FROM sample_emails
+ORDER BY risk_category, annual_revenue DESC
+"""
+
+# In-memory cache — loaded once at startup, never changes
+_sample_emails_cache: dict[str, Any] = {"list": None, "by_org": None}
+
+
+def _load_sample_emails_cache() -> None:
+    """Load all sample emails into memory at startup."""
+    rows = _execute_query(SAMPLE_EMAILS_ALL_SQL)
+    email_list = []
+    by_org: dict[str, str] = {}
+    for row in rows:
+        email_list.append({
+            "org_id": row["org_id"],
+            "label": row.get("label", ""),
+            "business_name": row["business_name"],
+            "risk_category": row.get("risk_category"),
+            "risk_level": row.get("risk_level"),
+            "sender_name": row.get("sender_name"),
+            "sender_email": row.get("sender_email"),
+            "num_employees": row.get("num_employees"),
+            "annual_revenue": float(row.get("annual_revenue") or 0),
+            "body_preview": row.get("body_preview", ""),
+        })
+        by_org[row["org_id"]] = row.get("eml_content", "")
+    _sample_emails_cache["list"] = _make_serializable({"emails": email_list})
+    _sample_emails_cache["by_org"] = by_org
+    logger.info("Cached %d sample emails in memory.", len(email_list))
+
+
+@app.get("/api/sample-emails")
+def get_sample_emails():
+    """Return sample email list from in-memory cache (instant)."""
+    if _sample_emails_cache["list"] is None:
+        _load_sample_emails_cache()
+    return JSONResponse(content=_sample_emails_cache["list"])
+
+
+@app.get("/api/sample-emails/{org_id}/eml")
+def get_sample_email_eml(org_id: str):
+    """Return the full eml_content for a single sample email from cache."""
+    if _sample_emails_cache["by_org"] is None:
+        _load_sample_emails_cache()
+    eml = _sample_emails_cache["by_org"].get(org_id)
+    if eml is None:
+        raise HTTPException(status_code=404, detail="Sample email not found")
+    return JSONResponse(content={"eml_content": eml})
+
+
+class SendEmailRequest(BaseModel):
+    eml_content: str
+    file_name: str | None = None
+
+@app.post("/api/send-email")
+def send_email(body: SendEmailRequest):
+    """Save an .eml file to the incoming_email volume for pipeline processing."""
+    import requests as _req
+
+    now = _dt.utcnow()
+    fname = body.file_name or f"quote_request_{_uuid.uuid4().hex[:8]}.eml"
+    if not fname.endswith(".eml"):
+        fname += ".eml"
+
+    vol_path = "/Volumes/dvin100_email_to_quote/email_to_quote/incoming_email"
+
+    try:
+        w = WorkspaceClient()
+        host = w.config.host
+        headers = dict(w.config.authenticate())
+        headers["Content-Type"] = "application/octet-stream"
+
+        upload_url = f"{host}/api/2.0/fs/files{vol_path}/{fname}"
+        resp = _req.put(
+            upload_url,
+            headers=headers,
+            data=body.eml_content.encode("utf-8"),
+            timeout=15,
+        )
+        if resp.status_code in (200, 201, 204):
+            logger.info("Email written to volume: %s/%s", vol_path, fname)
+            return JSONResponse(content={
+                "status": "ok",
+                "file_name": fname,
+                "volume_path": f"{vol_path}/{fname}",
+            })
+        else:
+            logger.warning("Failed to write email: %s %s", resp.status_code, resp.text[:200])
+            raise HTTPException(status_code=502, detail=f"Volume upload failed: {resp.status_code}")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Could not write email to volume: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Upload error: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Analytics endpoint
+# ---------------------------------------------------------------------------
+ANALYTICS_SUMMARY_QUERY = """
+SELECT
+    COUNT(*) AS total_quotes,
+    COUNT(CASE WHEN completed.email_id IS NOT NULL THEN 1 END) AS completed_quotes,
+    COUNT(CASE WHEN review.decision_tag = 'auto-approved' THEN 1 END) AS auto_approved,
+    COUNT(CASE WHEN review.decision_tag = 'auto-declined' THEN 1 END) AS auto_declined,
+    COUNT(CASE WHEN review.decision_tag = 'pending-review' THEN 1 END) AS pending_review,
+    COUNT(CASE WHEN uw.decision = 'uw-approved' THEN 1 END) AS uw_approved,
+    COUNT(CASE WHEN uw.decision = 'uw-declined' THEN 1 END) AS uw_declined,
+    AVG(CASE WHEN completed.email_id IS NOT NULL
+        THEN EXTRACT(EPOCH FROM (completed.completed_timestamp - recv.ingestion_timestamp))
+    END) AS avg_completion_seconds,
+    AVG(CASE WHEN review.decision_tag = 'auto-approved' AND completed.email_id IS NOT NULL
+        THEN EXTRACT(EPOCH FROM (completed.completed_timestamp - recv.ingestion_timestamp))
+    END) AS avg_auto_approved_seconds
+FROM lb_pipe_email_received recv
+LEFT JOIN lb_pipe_quote_review review ON review.email_id = recv.email_id
+LEFT JOIN lb_pipe_completed completed ON completed.email_id = recv.email_id
+LEFT JOIN underwriter uw ON uw.email_id = recv.email_id
+"""
+
+ANALYTICS_RESPONSE_DELAY_QUERY = """
+SELECT
+    recv.email_id,
+    parsed.business_name,
+    recv.ingestion_timestamp,
+    completed.completed_timestamp,
+    EXTRACT(EPOCH FROM (completed.completed_timestamp - recv.ingestion_timestamp)) AS delay_seconds
+FROM lb_pipe_email_received recv
+JOIN lb_pipe_quote_review review ON review.email_id = recv.email_id
+JOIN lb_pipe_email_parsed parsed ON parsed.email_id = recv.email_id
+JOIN lb_pipe_completed completed ON completed.email_id = recv.email_id
+WHERE review.decision_tag = 'auto-approved'
+ORDER BY recv.ingestion_timestamp ASC
+"""
+
+ANALYTICS_BY_CATEGORY_QUERY = """
+SELECT
+    COALESCE(parsed.risk_category, 'unknown') AS risk_category,
+    COUNT(*) AS count,
+    AVG(risk.risk_score) AS avg_risk_score,
+    AVG(creation.total_premium) AS avg_premium
+FROM lb_pipe_email_received recv
+LEFT JOIN lb_pipe_email_parsed parsed ON parsed.email_id = recv.email_id
+LEFT JOIN lb_pipe_quote_risk_scoring risk ON risk.email_id = recv.email_id
+LEFT JOIN lb_pipe_quote_creation creation ON creation.email_id = recv.email_id
+GROUP BY COALESCE(parsed.risk_category, 'unknown')
+ORDER BY count DESC
+"""
+
+
+@app.get("/api/analytics")
+def get_analytics():
+    """Return analytics data for the dashboard."""
+    summary_rows = _execute_query(ANALYTICS_SUMMARY_QUERY)
+    delay_rows = _execute_query(ANALYTICS_RESPONSE_DELAY_QUERY)
+    category_rows = _execute_query(ANALYTICS_BY_CATEGORY_QUERY)
+
+    summary = summary_rows[0] if summary_rows else {}
+
+    delay_data = []
+    for row in delay_rows:
+        delay_data.append({
+            "email_id": row["email_id"],
+            "business_name": row.get("business_name"),
+            "ingestion_timestamp": row["ingestion_timestamp"].isoformat() if row.get("ingestion_timestamp") else None,
+            "completed_timestamp": row["completed_timestamp"].isoformat() if row.get("completed_timestamp") else None,
+            "delay_seconds": float(row["delay_seconds"]) if row.get("delay_seconds") is not None else None,
+        })
+
+    return JSONResponse(content=_make_serializable({
+        "summary": summary,
+        "response_delay": delay_data,
+        "by_category": category_rows,
+    }))
 
 
 # ---------------------------------------------------------------------------

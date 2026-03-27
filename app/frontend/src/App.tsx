@@ -12,6 +12,7 @@ interface QuoteSteps {
   quote_creation: boolean;
   pdf_created: boolean;
   completed: boolean;
+  response_email: boolean;
 }
 
 interface Quote {
@@ -37,18 +38,31 @@ interface Quote {
   steps: QuoteSteps;
 }
 
-type Page = "processing" | "placeholder1" | "placeholder2";
+type Page = "email_intake" | "processing" | "placeholder1" | "analytics";
+
+interface SampleEmail {
+  org_id: string;
+  label: string;
+  business_name: string;
+  risk_category: string;
+  risk_level: "low" | "medium" | "high";
+  sender_name: string;
+  sender_email: string;
+  num_employees: number;
+  annual_revenue: number;
+  body_preview: string;
+}
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const STEP_KEYS: (keyof QuoteSteps)[] = [
   "received", "parsed", "enriched", "features", "risk_scoring",
-  "quote_review", "quote_creation", "pdf_created", "completed",
+  "quote_review", "quote_creation", "pdf_created", "completed", "response_email",
 ];
 
 const STEP_LABELS: string[] = [
   "Email Received", "LLM Parsing", "Data Enrichment", "Featurization",
-  "Risk Scoring", "Quote Review", "Quote Creation", "PDF Creation", "Completed",
+  "Risk Scoring", "Quote Review", "Quote Creation", "PDF Creation", "Completed", "Response Sent",
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -82,20 +96,23 @@ function formatCurrency(value: number | null): string {
 function RiskBadge({ band }: { band: string | null }) {
   if (!band) return null;
   const c: Record<string, string> = {
-    Low: "bg-emerald-500/10 text-emerald-600", Medium: "bg-amber-500/10 text-amber-600",
-    High: "bg-orange-500/10 text-orange-600", "Very High": "bg-red-500/10 text-red-600",
+    Low: "bg-emerald-500/10 text-emerald-400", Medium: "bg-amber-500/10 text-amber-400",
+    High: "bg-orange-500/10 text-orange-400", "Very High": "bg-red-500/10 text-red-400",
   };
-  return <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${c[band] || "bg-gray-100 text-gray-500"}`}>{band}</span>;
+  return <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${c[band] || "bg-white/10 text-white/50"}`}>{band}</span>;
 }
 
 function DecisionBadge({ tag }: { tag: string | null }) {
   if (!tag) return null;
   const c: Record<string, string> = {
-    "auto-approved": "bg-emerald-500/10 text-emerald-600",
-    "pending-review": "bg-amber-500/10 text-amber-600",
-    "auto-declined": "bg-red-500/10 text-red-600",
+    "auto-approved": "bg-emerald-500/10 text-emerald-400",
+    "pending-review": "bg-amber-500/10 text-amber-400",
+    "auto-declined": "bg-red-500/10 text-red-400",
+    "uw-approved": "bg-emerald-500/10 text-emerald-400",
+    "uw-declined": "bg-red-500/10 text-red-400",
+    "uw-info": "bg-blue-500/10 text-blue-400",
   };
-  return <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${c[tag] || "bg-gray-100 text-gray-500"}`}>{tag}</span>;
+  return <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${c[tag] || "bg-white/10 text-white/50"}`}>{tag}</span>;
 }
 
 // ─── Mini Pipeline (row summary) ────────────────────────────────────────────
@@ -111,9 +128,9 @@ function MiniPipeline({ steps, decisionTag }: { steps: QuoteSteps; decisionTag: 
         const spin = !steps.completed && !warn && i === first;
         return (
           <div key={i} className="flex items-center">
-            {i > 0 && <div className={`w-1.5 h-px ${done ? "bg-emerald-400" : warn ? "bg-amber-300" : "bg-gray-300"}`} />}
+            {i > 0 && <div className={`w-1.5 h-px ${done ? "bg-emerald-400" : warn ? "bg-amber-400" : "bg-white/20"}`} />}
             <div className={`w-2.5 h-2.5 rounded-full ${
-              done ? "bg-emerald-500" : warn ? "bg-amber-400" : spin ? "border border-brick-primary border-t-transparent step-spinner" : "bg-gray-300"
+              done ? "bg-emerald-500" : warn ? "bg-amber-400" : spin ? "border border-brick-primary border-t-transparent step-spinner" : "bg-white/20"
             }`} />
           </div>
         );
@@ -162,6 +179,8 @@ const COL_LABELS: Record<string, string> = {
   quote_timestamp: "Quote At", pdf_path: "PDF Path", pdf_status: "PDF Status",
   pdf_executive_summary: "Executive Summary", pdf_error: "PDF Error",
   pdf_timestamp: "PDF At", final_status: "Final Status", completed_timestamp: "Completed At",
+  email_subject: "Email Subject", email_body: "Email Body", eml_file_name: "Email File",
+  eml_volume_path: "Volume Path", eml_write_status: "Write Status", response_timestamp: "Response At",
 };
 
 function fmtVal(key: string, value: unknown): string {
@@ -188,11 +207,11 @@ function PdfModal({ pdfPath, onClose }: { pdfPath: string; onClose: () => void }
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        className="bg-[#1e2030] rounded-xl shadow-2xl flex flex-col overflow-hidden"
         style={{ width: "min(92vw, 1100px)", height: "85vh" }}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-sidebar shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 bg-sidebar shrink-0">
           <div className="flex items-center gap-2">
             <svg className="w-4 h-4 text-brick-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
@@ -206,7 +225,7 @@ function PdfModal({ pdfPath, onClose }: { pdfPath: string; onClose: () => void }
           </button>
         </div>
         <iframe src={pdfPath} className="flex-1 w-full" title="PDF Quote" />
-        <div className="flex justify-end px-5 py-3 border-t border-gray-200 bg-gray-50 shrink-0">
+        <div className="flex justify-end px-5 py-3 border-t border-white/5 bg-[#13141f] shrink-0">
           <button
             onClick={onClose}
             className="px-5 py-2 bg-brick-primary hover:bg-brick-primary/90 text-white text-sm font-medium rounded-lg transition-colors"
@@ -228,9 +247,9 @@ function StepDetailPanel({ data, stepLabel, pdfPath }: {
   const main = entries.filter(([k]) => !k.includes("timestamp") && !k.endsWith("_at"));
 
   return (
-    <div className="expand-enter bg-white border border-gray-200 rounded-lg p-5 mt-4">
+    <div className="expand-enter bg-[#1e2030] border border-white/10 rounded-lg p-5 mt-4">
       <div className="flex items-center justify-between mb-4">
-        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{stepLabel}</h4>
+        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wider">{stepLabel}</h4>
         {pdfPath && (
           <button
             onClick={() => setShowPdf(true)}
@@ -249,19 +268,19 @@ function StepDetailPanel({ data, stepLabel, pdfPath }: {
           const label = COL_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
           const long = typeof val === "string" && String(val).length > 80;
           return (
-            <div key={key} className={`flex flex-col py-2 border-b border-gray-50 ${long ? "sm:col-span-2 lg:col-span-3" : ""}`}>
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider">{label}</span>
-              <span className={`text-[13px] text-gray-700 ${long ? "leading-relaxed mt-0.5" : "font-medium"}`}>{fmtVal(key, val)}</span>
+            <div key={key} className={`flex flex-col py-2 border-b border-white/5 ${long ? "sm:col-span-2 lg:col-span-3" : ""}`}>
+              <span className="text-[10px] text-white/40 uppercase tracking-wider">{label}</span>
+              <span className={`text-[13px] text-white/70 ${long ? "leading-relaxed mt-0.5" : "font-medium"}`}>{fmtVal(key, val)}</span>
             </div>
           );
         })}
       </div>
       {timestamps.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap gap-6">
+        <div className="mt-4 pt-3 border-t border-white/5 flex flex-wrap gap-6">
           {timestamps.map(([key, val]) => (
-            <div key={key} className="text-[11px] text-gray-400">
+            <div key={key} className="text-[11px] text-white/40">
               <span className="uppercase tracking-wide">{COL_LABELS[key] || key}: </span>
-              <span className="text-gray-500">{fmtVal(key, val)}</span>
+              <span className="text-white/50">{fmtVal(key, val)}</span>
             </div>
           ))}
         </div>
@@ -310,11 +329,11 @@ function InteractivePipeline({ steps, decisionTag, emailId, pdfPath }: {
                   className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-150 ${
                     done ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-default"
                   } ${
-                    active ? "bg-brick-dark ring-2 ring-brick-primary ring-offset-2"
+                    active ? "bg-brick-dark ring-2 ring-brick-primary ring-offset-2 ring-offset-[#1e2030]"
                     : done ? "bg-emerald-500"
                     : warn ? "bg-amber-400"
-                    : spin ? "border-[3px] border-brick-primary border-t-transparent step-spinner bg-white"
-                    : "bg-gray-200"
+                    : spin ? "border-[3px] border-brick-primary border-t-transparent step-spinner bg-[#1e2030]"
+                    : "bg-white/10"
                   }`}
                 >
                   {(done || active) && (
@@ -327,16 +346,16 @@ function InteractivePipeline({ steps, decisionTag, emailId, pdfPath }: {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
                   )}
-                  {!done && !spin && !warn && <span className="text-[11px] text-gray-400 font-medium">{i + 1}</span>}
+                  {!done && !spin && !warn && <span className="text-[11px] text-white/40 font-medium">{i + 1}</span>}
                 </button>
                 <span className={`text-[10px] mt-1.5 text-center leading-tight font-medium ${
-                  active ? "text-brick-dark" : done ? "text-emerald-600" : warn ? "text-amber-600" : spin ? "text-brick-primary" : "text-gray-400"
+                  active ? "text-brick-primary" : done ? "text-emerald-400" : warn ? "text-amber-400" : spin ? "text-brick-primary" : "text-white/40"
                 }`}>
                   {warn ? "Pending Review" : STEP_LABELS[i]}
                 </span>
               </div>
               {i < STEP_KEYS.length - 1 && (
-                <div className={`flex-1 h-px mx-0.5 -mt-5 ${flags[i + 1] ? "bg-emerald-400" : done ? "bg-emerald-200" : warn ? "bg-amber-200" : "bg-gray-200"}`} />
+                <div className={`flex-1 h-px mx-0.5 -mt-5 ${flags[i + 1] ? "bg-emerald-400" : done ? "bg-emerald-400/30" : warn ? "bg-amber-400/30" : "bg-white/10"}`} />
               )}
             </div>
           );
@@ -346,7 +365,7 @@ function InteractivePipeline({ steps, decisionTag, emailId, pdfPath }: {
       {sel !== null && (
         <div className="pb-1">
           {loading ? (
-            <div className="flex items-center gap-2 py-8 justify-center text-gray-400">
+            <div className="flex items-center gap-2 py-8 justify-center text-white/40">
               <div className="w-4 h-4 border-2 border-brick-primary border-t-transparent rounded-full step-spinner" />
               <span className="text-sm">Loading...</span>
             </div>
@@ -357,7 +376,7 @@ function InteractivePipeline({ steps, decisionTag, emailId, pdfPath }: {
               pdfPath={STEP_KEYS[sel] === "completed" || STEP_KEYS[sel] === "pdf_created" ? pdfPath : null}
             />
           ) : (
-            <div className="py-6 text-center text-sm text-gray-400">No data available</div>
+            <div className="py-6 text-center text-sm text-white/40">No data available</div>
           )}
         </div>
       )}
@@ -371,34 +390,34 @@ function QuoteRow({ quote, isExpanded, onToggle }: {
   quote: Quote; isExpanded: boolean; onToggle: () => void;
 }) {
   return (
-    <div className={`bg-white rounded-lg border transition-all duration-150 ${
-      isExpanded ? "border-gray-300 shadow-sm" : "border-gray-200 hover:border-gray-300"
+    <div className={`bg-[#1e2030] rounded-lg border transition-all duration-150 ${
+      isExpanded ? "border-white/20 shadow-sm" : "border-white/5 hover:border-white/10"
     }`}>
       <div className="px-5 py-3.5 cursor-pointer select-none" onClick={onToggle}>
         <div className="flex items-center gap-5">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-900 truncate">{quote.business_name}</h3>
+              <h3 className={`text-sm font-semibold truncate ${quote.business_name ? "text-white" : "text-white/40 italic"}`}>{quote.business_name || "Processing new request\u2026"}</h3>
               <RiskBadge band={quote.risk_band} />
               <DecisionBadge tag={quote.decision_tag} />
             </div>
-            <p className="text-[12px] text-gray-400 mt-0.5 truncate">{quote.sender_name} &middot; {quote.sender_email}</p>
+            <p className="text-[12px] text-white/40 mt-0.5 truncate">{quote.business_name ? <>{quote.sender_name} &middot; {quote.sender_email}</> : quote.file_name}</p>
           </div>
           <div className="text-right hidden sm:block min-w-[90px]">
-            <p className="text-sm font-semibold text-gray-900">{formatCurrency(quote.total_premium)}</p>
-            <p className="text-[11px] text-gray-400">premium</p>
+            <p className="text-sm font-semibold text-white">{formatCurrency(quote.total_premium)}</p>
+            <p className="text-[11px] text-white/40">premium</p>
           </div>
           <div className="hidden md:block"><MiniPipeline steps={quote.steps} decisionTag={quote.decision_tag} /></div>
-          <p className="text-[11px] text-gray-400 min-w-[60px] text-right">{relativeTime(quote.ingestion_timestamp)}</p>
-          <svg className={`w-4 h-4 text-gray-400 transition-transform duration-150 shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+          <p className="text-[11px] text-white/40 min-w-[60px] text-right">{relativeTime(quote.ingestion_timestamp)}</p>
+          <svg className={`w-4 h-4 text-white/40 transition-transform duration-150 shrink-0 ${isExpanded ? "rotate-180" : ""}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
         </div>
       </div>
       {isExpanded && (
-        <div className="expand-enter border-t border-gray-100 px-5 pt-3 pb-4">
-          <p className="text-[11px] text-gray-400 mb-1">Click a completed step to inspect its data</p>
+        <div className="expand-enter border-t border-white/5 px-5 pt-3 pb-4">
+          <p className="text-[11px] text-white/40 mb-1">Click a completed step to inspect its data</p>
           <InteractivePipeline
             steps={quote.steps}
             decisionTag={quote.decision_tag}
@@ -414,6 +433,15 @@ function QuoteRow({ quote, isExpanded, onToggle }: {
 // ─── Sidebar ────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS: { key: Page; label: string; icon: JSX.Element }[] = [
+  {
+    key: "analytics",
+    label: "Analytics",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+      </svg>
+    ),
+  },
   {
     key: "processing",
     label: "Quote Processing",
@@ -433,11 +461,11 @@ const NAV_ITEMS: { key: Page; label: string; icon: JSX.Element }[] = [
     ),
   },
   {
-    key: "placeholder2",
-    label: "Analytics",
+    key: "email_intake",
+    label: "Email Intake",
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
       </svg>
     ),
   },
@@ -509,40 +537,88 @@ function PageHeader({ title, subtitle, right }: {
 
 // ─── Page: Quote Processing ─────────────────────────────────────────────────
 
+const DECISION_FILTERS: { value: string; label: string; color: string }[] = [
+  { value: "all", label: "All", color: "bg-white/10 text-white" },
+  { value: "auto-approved", label: "Auto-Approved", color: "bg-emerald-500/20 text-emerald-400" },
+  { value: "pending-review", label: "Pending Review", color: "bg-amber-500/20 text-amber-400" },
+  { value: "auto-declined", label: "Auto-Declined", color: "bg-red-500/20 text-red-400" },
+  { value: "uw-approved", label: "UW Approved", color: "bg-emerald-500/20 text-emerald-400" },
+  { value: "uw-declined", label: "UW Declined", color: "bg-red-500/20 text-red-400" },
+  { value: "uw-info", label: "Info Requested", color: "bg-blue-500/20 text-blue-400" },
+  { value: "in-progress", label: "In Progress", color: "bg-cyan-500/20 text-cyan-400" },
+];
+
 function QuoteProcessingPage({ quotes, loading, error }: {
   quotes: Quote[]; loading: boolean; error: string | null;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState("all");
+
+  const filtered = filter === "all"
+    ? quotes
+    : filter === "in-progress"
+      ? quotes.filter((q) => !q.decision_tag)
+      : quotes.filter((q) => q.decision_tag === filter);
 
   return (
     <div>
       <PageHeader
         title="Quote Processing"
         subtitle="Real-time pipeline status for incoming quote requests"
-        right={<span className="text-sm text-white/40">{quotes.length} quote{quotes.length !== 1 ? "s" : ""}</span>}
+        right={<span className="text-sm text-white/40">{filtered.length} of {quotes.length} quote{quotes.length !== 1 ? "s" : ""}</span>}
       />
       <div className="p-6 max-w-[1200px] mx-auto">
+
+      {/* Decision filter bar */}
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {DECISION_FILTERS.map((f) => {
+          const count = f.value === "all"
+            ? quotes.length
+            : f.value === "in-progress"
+              ? quotes.filter((q) => !q.decision_tag).length
+              : quotes.filter((q) => q.decision_tag === f.value).length;
+          const active = filter === f.value;
+          return (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                active
+                  ? f.color
+                  : "bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/50"
+              }`}
+            >
+              {f.label} <span className={active ? "opacity-70" : "opacity-50"}>({count})</span>
+            </button>
+          );
+        })}
+      </div>
 
       {loading && (
         <div className="flex items-center justify-center py-20">
           <div className="w-6 h-6 border-2 border-brick-primary border-t-transparent rounded-full step-spinner" />
-          <span className="ml-3 text-gray-400 text-sm">Loading...</span>
+          <span className="ml-3 text-white/40 text-sm">Loading...</span>
         </div>
       )}
       {!loading && error && quotes.length === 0 && (
-        <div className="bg-red-50 border border-red-100 rounded-lg p-6 text-center">
-          <p className="text-red-600 text-sm font-medium">Failed to connect</p>
-          <p className="text-red-400 text-xs mt-1">{error}</p>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 text-center">
+          <p className="text-red-400 text-sm font-medium">Failed to connect</p>
+          <p className="text-red-400/60 text-xs mt-1">{error}</p>
         </div>
       )}
       {!loading && !error && quotes.length === 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-          <p className="text-gray-400 text-sm">No quotes in the pipeline yet</p>
+        <div className="bg-[#1e2030] rounded-lg border border-white/5 p-12 text-center">
+          <p className="text-white/40 text-sm">No quotes in the pipeline yet</p>
+        </div>
+      )}
+      {!loading && filtered.length === 0 && quotes.length > 0 && (
+        <div className="bg-[#1e2030] rounded-lg border border-white/5 p-8 text-center">
+          <p className="text-white/40 text-sm">No quotes match this filter</p>
         </div>
       )}
 
       <div className="space-y-2">
-        {quotes.map((q) => (
+        {filtered.map((q) => (
           <QuoteRow
             key={q.email_id}
             quote={q}
@@ -690,8 +766,8 @@ function UnderwriterReviewPage() {
         {/* Left: Quote list */}
         <div className="w-80 shrink-0 space-y-1.5">
           {queue.length === 0 && (
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-              <p className="text-sm text-gray-400">No quotes pending review</p>
+            <div className="bg-[#1e2030] rounded-lg border border-white/5 p-8 text-center">
+              <p className="text-sm text-white/40">No quotes pending review</p>
             </div>
           )}
           {queue.map((q) => (
@@ -700,18 +776,18 @@ function UnderwriterReviewPage() {
               onClick={() => handleSelect(q)}
               className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
                 selected?.email_id === q.email_id
-                  ? "border-brick-primary bg-brick-primary/5"
-                  : "border-gray-200 bg-white hover:border-gray-300"
+                  ? "border-brick-primary bg-brick-primary/10"
+                  : "border-white/5 bg-[#1e2030] hover:border-white/10"
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-900 truncate">{q.business_name}</span>
+                <span className="text-sm font-semibold text-white truncate">{q.business_name}</span>
                 <RiskBadge band={q.risk_band} />
               </div>
-              <p className="text-[11px] text-gray-400 mt-0.5 truncate">{q.sender_name} &middot; {q.sender_email}</p>
+              <p className="text-[11px] text-white/40 mt-0.5 truncate">{q.sender_name} &middot; {q.sender_email}</p>
               <div className="flex items-center justify-between mt-1.5">
-                <span className="text-[11px] text-gray-400">{relativeTime(q.ingestion_timestamp)}</span>
-                <span className="text-[11px] font-medium text-gray-500">Score: {q.risk_score?.toFixed(0)}</span>
+                <span className="text-[11px] text-white/40">{relativeTime(q.ingestion_timestamp)}</span>
+                <span className="text-[11px] font-medium text-white/50">Score: {q.risk_score?.toFixed(0)}</span>
               </div>
             </button>
           ))}
@@ -721,44 +797,44 @@ function UnderwriterReviewPage() {
         <div className="flex-1 min-w-0">
           {!selected ? (
             <div className="flex items-center justify-center h-full">
-              <p className="text-sm text-gray-400">Select a quote to review</p>
+              <p className="text-sm text-white/40">Select a quote to review</p>
             </div>
           ) : submitted ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-8 text-center expand-enter">
+            <div className="bg-[#1e2030] rounded-lg border border-white/5 p-8 text-center expand-enter">
               <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                submitted === "uw-approved" ? "bg-emerald-100" : submitted === "uw-declined" ? "bg-red-100" : "bg-amber-100"
+                submitted === "uw-approved" ? "bg-emerald-500/10" : submitted === "uw-declined" ? "bg-red-500/10" : "bg-amber-500/10"
               }`}>
                 {submitted === "uw-approved" && (
-                  <svg className="w-7 h-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 )}
                 {submitted === "uw-declined" && (
-                  <svg className="w-7 h-7 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-7 h-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 )}
                 {submitted === "uw-info" && (
-                  <svg className="w-7 h-7 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                   </svg>
                 )}
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-white">
                 {submitted === "uw-approved" ? "Quote Approved" : submitted === "uw-declined" ? "Quote Declined" : "Information Requested"}
               </h3>
-              <p className="text-sm text-gray-400 mt-1">{selected.business_name}</p>
+              <p className="text-sm text-white/40 mt-1">{selected.business_name}</p>
               <button onClick={() => { setSelected(null); setSubmitted(null); }}
                 className="mt-4 text-sm text-brick-primary hover:underline">Back to queue</button>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden expand-enter">
+            <div className="bg-[#1e2030] rounded-lg border border-white/5 overflow-hidden expand-enter">
               {/* Quote header */}
-              <div className="px-6 py-4 border-b border-gray-100">
+              <div className="px-6 py-4 border-b border-white/5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-base font-semibold text-gray-900">{selected.business_name}</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <h2 className="text-base font-semibold text-white">{selected.business_name}</h2>
+                    <p className="text-xs text-white/40 mt-0.5">
                       {selected.sender_name} &middot; {selected.sender_email}
                       {selected.sender_phone && ` &middot; ${selected.sender_phone}`}
                     </p>
@@ -771,13 +847,13 @@ function UnderwriterReviewPage() {
               </div>
 
               {/* Review narrative */}
-              <div className="px-6 py-4 border-b border-gray-100 bg-amber-50/50">
-                <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">Why This Requires Review</h4>
-                <p className="text-sm text-gray-700 leading-relaxed">{selected.review_summary || "No review summary available."}</p>
+              <div className="px-6 py-4 border-b border-white/5 bg-amber-500/10">
+                <h4 className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Why This Requires Review</h4>
+                <p className="text-sm text-white/70 leading-relaxed">{selected.review_summary || "No review summary available."}</p>
               </div>
 
               {/* Details grid */}
-              <div className="px-6 py-4 border-b border-gray-100">
+              <div className="px-6 py-4 border-b border-white/5">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
                     ["Risk Score", selected.risk_score != null ? `${selected.risk_score.toFixed(1)} / 100` : "--"],
@@ -794,28 +870,28 @@ function UnderwriterReviewPage() {
                     ["Category", selected.risk_category?.replace(/_/g, " ") ?? "--"],
                   ].map(([label, val]) => (
                     <div key={label as string} className={`${(label as string) === "Coverages" ? "lg:col-span-2" : ""}`}>
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider">{label as string}</p>
-                      <p className="text-sm font-medium text-gray-800 mt-0.5">{val as string}</p>
+                      <p className="text-[10px] text-white/40 uppercase tracking-wider">{label as string}</p>
+                      <p className="text-sm font-medium text-white/80 mt-0.5">{val as string}</p>
                     </div>
                   ))}
                 </div>
                 {selected.worst_claim_description && (
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">Worst Claim</p>
-                    <p className="text-sm text-gray-700 mt-0.5">{selected.worst_claim_description}</p>
+                  <div className="mt-3 pt-3 border-t border-white/5">
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Worst Claim</p>
+                    <p className="text-sm text-white/70 mt-0.5">{selected.worst_claim_description}</p>
                   </div>
                 )}
                 {selected.special_requirements && (
                   <div className="mt-2">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wider">Special Requirements</p>
-                    <p className="text-sm text-gray-700 mt-0.5">{selected.special_requirements}</p>
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Special Requirements</p>
+                    <p className="text-sm text-white/70 mt-0.5">{selected.special_requirements}</p>
                   </div>
                 )}
               </div>
 
               {/* Decision section */}
               <div className="px-6 py-5">
-                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Underwriter Decision</h4>
+                <h4 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Underwriter Decision</h4>
 
                 {/* Action buttons */}
                 <div className="flex gap-2 mb-4">
@@ -823,19 +899,19 @@ function UnderwriterReviewPage() {
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
                       action === "approve"
                         ? "bg-emerald-500 text-white border-emerald-500"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:text-emerald-700"
+                        : "bg-white/5 text-white/70 border-white/10 hover:border-emerald-500/40 hover:text-emerald-400"
                     }`}>Approve</button>
                   <button onClick={() => setAction("decline")}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
                       action === "decline"
                         ? "bg-red-500 text-white border-red-500"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-red-300 hover:text-red-700"
+                        : "bg-white/5 text-white/70 border-white/10 hover:border-red-500/40 hover:text-red-400"
                     }`}>Decline</button>
                   <button onClick={() => setAction("info")}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
                       action === "info"
                         ? "bg-amber-500 text-white border-amber-500"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:text-amber-700"
+                        : "bg-white/5 text-white/70 border-white/10 hover:border-amber-500/40 hover:text-amber-400"
                     }`}>Request Info</button>
                 </div>
 
@@ -844,14 +920,14 @@ function UnderwriterReviewPage() {
                   <div className="expand-enter space-y-3 mb-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[11px] text-gray-500 uppercase tracking-wider">Surcharge %</label>
+                        <label className="text-[11px] text-white/50 uppercase tracking-wider">Surcharge %</label>
                         <input type="number" min="0" max="100" step="0.5" value={surcharge} onChange={e => setSurcharge(e.target.value)}
-                          placeholder="0" className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary" />
+                          placeholder="0" className="mt-1 w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary" />
                       </div>
                       <div>
-                        <label className="text-[11px] text-gray-500 uppercase tracking-wider">Discount %</label>
+                        <label className="text-[11px] text-white/50 uppercase tracking-wider">Discount %</label>
                         <input type="number" min="0" max="100" step="0.5" value={discount} onChange={e => setDiscount(e.target.value)}
-                          placeholder="0" className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary" />
+                          placeholder="0" className="mt-1 w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary" />
                       </div>
                     </div>
                   </div>
@@ -860,20 +936,20 @@ function UnderwriterReviewPage() {
                 {/* Request info */}
                 {action === "info" && (
                   <div className="expand-enter mb-4">
-                    <label className="text-[11px] text-gray-500 uppercase tracking-wider">Information Required</label>
+                    <label className="text-[11px] text-white/50 uppercase tracking-wider">Information Required</label>
                     <textarea value={infoRequest} onChange={e => setInfoRequest(e.target.value)}
                       rows={3} placeholder="Describe the additional information needed from the applicant..."
-                      className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary resize-none" />
+                      className="mt-1 w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary resize-none" />
                   </div>
                 )}
 
                 {/* Notes (always visible when action selected) */}
                 {action && (
                   <div className="expand-enter mb-4">
-                    <label className="text-[11px] text-gray-500 uppercase tracking-wider">Underwriter Notes</label>
+                    <label className="text-[11px] text-white/50 uppercase tracking-wider">Underwriter Notes</label>
                     <textarea value={notes} onChange={e => setNotes(e.target.value)}
                       rows={2} placeholder="Add notes about your decision..."
-                      className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary resize-none" />
+                      className="mt-1 w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary resize-none" />
                   </div>
                 )}
 
@@ -895,9 +971,9 @@ function UnderwriterReviewPage() {
         <>
           {/* Chat popup */}
           {chatOpen && (
-            <div className="fixed bottom-20 right-8 w-[420px] max-h-[520px] bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col z-50 expand-enter">
+            <div className="fixed bottom-20 right-8 w-[420px] max-h-[520px] bg-[#1e2030] rounded-xl shadow-2xl border border-white/10 flex flex-col z-50 expand-enter">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-sidebar rounded-t-xl">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-sidebar rounded-t-xl">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-brick-primary/20 flex items-center justify-center">
                     <svg className="w-3.5 h-3.5 text-brick-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -917,16 +993,16 @@ function UnderwriterReviewPage() {
               <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px] max-h-[340px]">
                 {chatHistory.length === 0 && (
                   <div className="text-center py-8">
-                    <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-3">
-                      <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3">
+                      <svg className="w-5 h-5 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
                       </svg>
                     </div>
-                    <p className="text-xs text-gray-400">Ask anything about <span className="font-medium text-gray-500">{selected.business_name}</span></p>
+                    <p className="text-xs text-white/40">Ask anything about <span className="font-medium text-white/60">{selected.business_name}</span></p>
                     <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
                       {["What are the main risk factors?", "Summarize the claims history", "Is the premium reasonable?"].map(q => (
                         <button key={q} onClick={() => { setChatInput(q); }}
-                          className="text-[11px] px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-full transition-colors">{q}</button>
+                          className="text-[11px] px-2.5 py-1 bg-white/5 hover:bg-white/10 text-white/50 rounded-full transition-colors">{q}</button>
                       ))}
                     </div>
                   </div>
@@ -936,7 +1012,7 @@ function UnderwriterReviewPage() {
                     <div className={`max-w-[85%] px-3 py-2 rounded-lg text-sm leading-relaxed ${
                       msg.role === "user"
                         ? "bg-brick-primary text-white rounded-br-sm"
-                        : "bg-gray-50 text-gray-700 border border-gray-100 rounded-bl-sm"
+                        : "bg-white/5 text-white/70 border border-white/10 rounded-bl-sm"
                     }`}>
                       {msg.role === "assistant" ? (
                         <div className="whitespace-pre-wrap">{msg.text}</div>
@@ -946,16 +1022,16 @@ function UnderwriterReviewPage() {
                 ))}
                 {chatLoading && (
                   <div className="flex justify-start">
-                    <div className="px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg rounded-bl-sm flex items-center gap-2">
+                    <div className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg rounded-bl-sm flex items-center gap-2">
                       <div className="w-3.5 h-3.5 border-2 border-brick-primary border-t-transparent rounded-full step-spinner" />
-                      <span className="text-xs text-gray-400">Thinking...</span>
+                      <span className="text-xs text-white/40">Thinking...</span>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Input */}
-              <div className="px-3 py-3 border-t border-gray-100">
+              <div className="px-3 py-3 border-t border-white/5">
                 <div className="flex gap-2">
                   <input
                     value={chatInput}
@@ -963,7 +1039,7 @@ function UnderwriterReviewPage() {
                     onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
                     placeholder="Ask about this quote..."
                     disabled={chatLoading}
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary disabled:opacity-50"
+                    className="flex-1 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-brick-primary/30 focus:border-brick-primary disabled:opacity-50"
                   />
                   <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
                     className="px-3 py-2 bg-brick-primary text-white rounded-lg hover:bg-brick-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
@@ -1001,6 +1077,662 @@ function UnderwriterReviewPage() {
   );
 }
 
+// ─── Risk category colors ────────────────────────────────────────────────────
+
+const RISK_CAT_COLORS: Record<string, string> = {
+  office: "bg-blue-500/10 text-blue-400",
+  retail: "bg-purple-500/10 text-purple-400",
+  construction: "bg-orange-500/10 text-orange-400",
+  manufacturing: "bg-slate-500/10 text-slate-300",
+  healthcare: "bg-rose-500/10 text-rose-400",
+  technology: "bg-cyan-500/10 text-cyan-400",
+  food_service: "bg-yellow-500/10 text-yellow-400",
+  transportation: "bg-indigo-500/10 text-indigo-400",
+  professional_services: "bg-teal-500/10 text-teal-400",
+  hospitality: "bg-pink-500/10 text-pink-400",
+};
+
+const RISK_LEVEL_COLORS: Record<string, string> = {
+  low: "bg-emerald-500/10 text-emerald-400",
+  medium: "bg-amber-500/10 text-amber-400",
+  high: "bg-red-500/10 text-red-400",
+};
+
+// ─── Page: Email Intake ──────────────────────────────────────────────────────
+
+function EmailIntakePage() {
+  const [samples, setSamples] = useState<SampleEmail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [emlContent, setEmlContent] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState<{ file_name: string } | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [loadingEml, setLoadingEml] = useState(false);
+
+  // Fetch sample emails on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/sample-emails");
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        setSamples(d.emails || []);
+        setError(null);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load samples");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // Filter samples
+  const filtered = samples.filter((s) => {
+    const matchSearch =
+      !searchTerm ||
+      s.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.business_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.sender_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchCat = filterCategory === "all" || s.risk_category === filterCategory;
+    return matchSearch && matchCat;
+  });
+
+  // Get unique categories
+  const categories = [...new Set(samples.map((s) => s.risk_category))].sort();
+
+  // Select a sample — lazy-load eml_content
+  const handleSelect = async (sample: SampleEmail) => {
+    setSelectedId(sample.org_id);
+    setEmlContent("");
+    setSent(null);
+    setLoadingEml(true);
+    try {
+      const r = await fetch(`/api/sample-emails/${sample.org_id}/eml`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      setEmlContent(d.eml_content || "");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load email content");
+    } finally {
+      setLoadingEml(false);
+    }
+  };
+
+  // Send email
+  const handleSend = async () => {
+    if (!emlContent.trim()) return;
+    setSending(true);
+    setSent(null);
+    try {
+      const r = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eml_content: emlContent }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      setSent({ file_name: d.file_name });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const selected = samples.find((s) => s.org_id === selectedId);
+
+  return (
+    <div className="flex flex-col h-full">
+      <PageHeader
+        title="Email Intake"
+        subtitle="Simulate incoming insurance quote request emails"
+        right={
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-white/40">{samples.length} sample emails</span>
+            <span className="text-xs text-white/40">|</span>
+            <span className="text-xs text-white/40">{categories.length} risk profiles</span>
+          </div>
+        }
+      />
+
+      {/* Error banner */}
+      {error && (
+        <div className="mx-6 mt-4 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
+          {error}
+          <button className="ml-2 underline" onClick={() => setError(null)}>dismiss</button>
+        </div>
+      )}
+
+      <div className="flex flex-1 min-h-0 p-6 gap-6">
+        {/* ── Left panel: Company list ── */}
+        <div className="w-[380px] shrink-0 flex flex-col bg-[#1e2030] border border-white/5 rounded-xl overflow-hidden">
+          {/* Search */}
+          <div className="p-3 border-b border-white/5">
+            <input
+              type="text"
+              placeholder="Search companies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-brick-primary focus:border-brick-primary"
+            />
+          </div>
+
+          {/* Category filter pills */}
+          <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-white/5">
+            <button
+              onClick={() => setFilterCategory("all")}
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                filterCategory === "all"
+                  ? "bg-white/20 text-white"
+                  : "bg-white/5 text-white/50 hover:bg-white/10"
+              }`}
+            >
+              All
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  filterCategory === cat
+                    ? RISK_CAT_COLORS[cat] || "bg-white/10 text-white/60"
+                    : "bg-white/5 text-white/40 hover:bg-white/10"
+                }`}
+              >
+                {cat.replace("_", " ")}
+              </button>
+            ))}
+          </div>
+
+          {/* Scrollable list */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-12 text-sm text-white/40">
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full step-spinner mr-2" />
+                Loading...
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="py-12 text-center text-sm text-white/40">No matching companies</div>
+            ) : (
+              filtered.map((s) => (
+                <button
+                  key={s.org_id}
+                  onClick={() => handleSelect(s)}
+                  className={`w-full text-left px-4 py-3 border-b border-white/5 transition-colors ${
+                    s.org_id === selectedId
+                      ? "bg-brick-primary/10 border-l-2 border-l-brick-primary"
+                      : "hover:bg-white/5 border-l-2 border-l-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-white/90 truncate flex-1">
+                      {s.business_name}
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold shrink-0 ${RISK_LEVEL_COLORS[s.risk_level] || "bg-white/10 text-white/50"}`}>
+                      {s.risk_level}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-medium shrink-0 ${RISK_CAT_COLORS[s.risk_category] || "bg-white/10 text-white/50"}`}>
+                      {(s.risk_category || "").replace("_", " ")}
+                    </span>
+                    <span className="text-[11px] text-white/40 truncate">
+                      {s.sender_name} · ${(s.annual_revenue || 0).toLocaleString()}
+                    </span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          {/* List footer */}
+          <div className="px-3 py-2 border-t border-white/5 text-[11px] text-white/40 text-center">
+            {filtered.length} of {samples.length} companies
+          </div>
+        </div>
+
+        {/* ── Right panel: Email editor ── */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {!selectedId && !emlContent ? (
+            <div className="flex-1 flex items-center justify-center bg-[#1e2030] border border-white/5 rounded-xl">
+              <div className="text-center text-white/40">
+                <svg className="w-12 h-12 mx-auto mb-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                </svg>
+                <p className="text-sm font-medium text-white/60">Select a company</p>
+                <p className="text-xs mt-1 text-white/40">Click a quote request on the left to preview the email</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col bg-[#1e2030] border border-white/5 rounded-xl overflow-hidden">
+              {/* Email header */}
+              {emlContent && (
+                <div className="bg-[#13141f] border-b border-white/5 px-5 py-3 space-y-1 text-sm shrink-0">
+                  {emlContent.split("\n").slice(0, 7).map((line, i) => {
+                    const [key, ...rest] = line.split(": ");
+                    const val = rest.join(": ");
+                    if (!val) return null;
+                    return (
+                      <div key={i} className="flex gap-2">
+                        <span className="text-white/40 font-medium w-20 shrink-0">{key}:</span>
+                        <span className="text-white/70 truncate">{val}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Email body */}
+              {loadingEml ? (
+                <div className="flex-1 flex items-center justify-center text-sm text-white/40">
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full step-spinner mr-2" />
+                  Loading email...
+                </div>
+              ) : (
+                <textarea
+                  value={emlContent}
+                  onChange={(e) => { setEmlContent(e.target.value); setSent(null); }}
+                  placeholder="Select a company on the left, or paste/type an email here..."
+                  className="flex-1 px-5 py-4 text-sm font-mono text-white/70 bg-transparent placeholder-white/20 focus:outline-none resize-none"
+                />
+              )}
+
+              {/* Send bar */}
+              <div className="shrink-0 px-5 py-3 border-t border-white/5 bg-[#13141f] flex items-center gap-4">
+                <button
+                  onClick={handleSend}
+                  disabled={!emlContent.trim() || sending}
+                  className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2 ${
+                    !emlContent.trim() || sending
+                      ? "bg-white/10 text-white/30 cursor-not-allowed"
+                      : "bg-brick-primary text-white hover:bg-red-600 shadow-sm hover:shadow"
+                  }`}
+                >
+                  {sending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full step-spinner" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                      </svg>
+                      Send to Pipeline
+                    </>
+                  )}
+                </button>
+
+                {sent && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm text-emerald-400">
+                      Sent as <span className="font-mono text-xs">{sent.file_name}</span>
+                    </span>
+                  </div>
+                )}
+
+                <div className="ml-auto text-[11px] text-white/40">
+                  Email is saved to the incoming volume for pipeline processing
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page: Analytics ─────────────────────────────────────────────────────────
+
+interface AnalyticsSummary {
+  total_quotes: number;
+  completed_quotes: number;
+  auto_approved: number;
+  auto_declined: number;
+  pending_review: number;
+  uw_approved: number;
+  uw_declined: number;
+  avg_completion_seconds: number | null;
+  avg_auto_approved_seconds: number | null;
+}
+
+interface ResponseDelayPoint {
+  email_id: string;
+  business_name: string | null;
+  ingestion_timestamp: string | null;
+  completed_timestamp: string | null;
+  delay_seconds: number | null;
+}
+
+interface CategoryStat {
+  risk_category: string;
+  count: number;
+  avg_risk_score: number | null;
+  avg_premium: number | null;
+}
+
+function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
+  return (
+    <div className="bg-[#1e2030] rounded-xl border border-white/5 px-5 py-4">
+      <p className="text-[11px] text-white/40 uppercase tracking-wider">{label}</p>
+      <p className={`text-2xl font-bold mt-1 ${color || "text-white"}`}>{value}</p>
+      {sub && <p className="text-xs text-white/30 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function formatDuration(seconds: number | null): string {
+  if (seconds == null) return "--";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+const CAT_COLORS: Record<string, string> = {
+  office: "#3b82f6", retail: "#8b5cf6", construction: "#f97316",
+  manufacturing: "#64748b", healthcare: "#f43f5e", technology: "#06b6d4",
+  food_service: "#eab308", transportation: "#6366f1", professional_services: "#14b8a6",
+  hospitality: "#ec4899", unknown: "#9ca3af",
+};
+
+// ─── SVG Line Chart (no external deps) ──────────────────────────────────────
+
+function SvgLineChart({ data }: { data: { name: string; value: number; label: string }[] }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  if (data.length === 0) return null;
+
+  const W = 900, H = 320;
+  const pad = { top: 20, right: 30, bottom: 70, left: 60 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  const values = data.map(d => d.value);
+  const maxV = Math.max(...values, 1);
+  const minV = Math.min(...values, 0);
+  const range = maxV - minV || 1;
+
+  const x = (i: number) => pad.left + (i / Math.max(data.length - 1, 1)) * cw;
+  const y = (v: number) => pad.top + ch - ((v - minV) / range) * ch;
+
+  const gridCount = 5;
+  const gridLines = Array.from({ length: gridCount + 1 }, (_, i) => {
+    const val = minV + (range / gridCount) * i;
+    return { val, yPos: y(val) };
+  });
+
+  const pathD = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(d.value).toFixed(1)}`).join(" ");
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 320 }}>
+      {/* Grid */}
+      {gridLines.map((g, i) => (
+        <g key={i}>
+          <line x1={pad.left} y1={g.yPos} x2={W - pad.right} y2={g.yPos} stroke="rgba(255,255,255,0.06)" />
+          <text x={pad.left - 8} y={g.yPos + 4} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize={10}>
+            {g.val.toFixed(1)}
+          </text>
+        </g>
+      ))}
+
+      {/* Y axis label */}
+      <text x={14} y={H / 2} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={10} transform={`rotate(-90, 14, ${H / 2})`}>
+        Seconds
+      </text>
+
+      {/* Line */}
+      <path d={pathD} fill="none" stroke="#2dd4bf" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* Area fill */}
+      <path
+        d={`${pathD} L${x(data.length - 1).toFixed(1)},${(pad.top + ch).toFixed(1)} L${pad.left.toFixed(1)},${(pad.top + ch).toFixed(1)} Z`}
+        fill="url(#areaGrad)" opacity={0.2}
+      />
+      <defs>
+        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2dd4bf" />
+          <stop offset="100%" stopColor="#2dd4bf" stopOpacity={0} />
+        </linearGradient>
+      </defs>
+
+      {/* Dots + labels */}
+      {data.map((d, i) => (
+        <g key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)} style={{ cursor: "pointer" }}>
+          <circle cx={x(i)} cy={y(d.value)} r={hovered === i ? 6 : 4} fill="#2dd4bf" stroke="#1e2030" strokeWidth={2} />
+          {/* X labels */}
+          <text
+            x={x(i)} y={pad.top + ch + 16} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize={9}
+            transform={`rotate(-35, ${x(i)}, ${pad.top + ch + 16})`}
+          >
+            {d.name.length > 14 ? d.name.slice(0, 14) + "..." : d.name}
+          </text>
+          {/* Tooltip on hover */}
+          {hovered === i && (
+            <g>
+              <rect x={x(i) - 55} y={y(d.value) - 36} width={110} height={28} rx={6} fill="#282a3a" stroke="rgba(255,255,255,0.1)" />
+              <text x={x(i)} y={y(d.value) - 18} textAnchor="middle" fill="#2dd4bf" fontSize={11} fontWeight={600}>
+                {d.value}s
+              </text>
+            </g>
+          )}
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// ─── SVG Bar Chart (no external deps) ───────────────────────────────────────
+
+function SvgBarChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  if (data.length === 0) return null;
+
+  const W = 900, H = 280;
+  const pad = { top: 20, right: 30, bottom: 60, left: 50 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  const maxV = Math.max(...data.map(d => d.value), 1);
+  const barW = Math.min(cw / data.length * 0.6, 60);
+  const gap = cw / data.length;
+
+  const gridCount = 4;
+  const gridLines = Array.from({ length: gridCount + 1 }, (_, i) => {
+    const val = (maxV / gridCount) * i;
+    return { val, yPos: pad.top + ch - (val / maxV) * ch };
+  });
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 280 }}>
+      {/* Grid */}
+      {gridLines.map((g, i) => (
+        <g key={i}>
+          <line x1={pad.left} y1={g.yPos} x2={W - pad.right} y2={g.yPos} stroke="rgba(255,255,255,0.06)" />
+          <text x={pad.left - 8} y={g.yPos + 4} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize={10}>
+            {Math.round(g.val)}
+          </text>
+        </g>
+      ))}
+
+      {/* Bars */}
+      {data.map((d, i) => {
+        const bx = pad.left + gap * i + (gap - barW) / 2;
+        const bh = (d.value / maxV) * ch;
+        const by = pad.top + ch - bh;
+        return (
+          <g key={i} onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)} style={{ cursor: "pointer" }}>
+            <rect x={bx} y={by} width={barW} height={bh} rx={4} fill={d.color} opacity={hovered === i ? 1 : 0.7} />
+            <text
+              x={bx + barW / 2} y={pad.top + ch + 16} textAnchor="end" fill="rgba(255,255,255,0.3)" fontSize={9}
+              transform={`rotate(-25, ${bx + barW / 2}, ${pad.top + ch + 16})`}
+            >
+              {d.label}
+            </text>
+            {hovered === i && (
+              <g>
+                <rect x={bx + barW / 2 - 30} y={by - 28} width={60} height={22} rx={5} fill="#282a3a" stroke="rgba(255,255,255,0.1)" />
+                <text x={bx + barW / 2} y={by - 12} textAnchor="middle" fill="white" fontSize={11} fontWeight={600}>
+                  {d.value}
+                </text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function AnalyticsPage() {
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [delayData, setDelayData] = useState<ResponseDelayPoint[]>([]);
+  const [categoryData, setCategoryData] = useState<CategoryStat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const r = await fetch("/api/analytics");
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        setSummary(d.summary || null);
+        setDelayData(d.response_delay || []);
+        setCategoryData(d.by_category || []);
+        setError(null);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load analytics");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+    const t = setInterval(fetchAnalytics, 10000);
+    return () => clearInterval(t);
+  }, []);
+
+  const chartData = delayData.map((d) => ({
+    name: d.business_name || d.email_id.slice(0, 8),
+    value: d.delay_seconds != null ? Math.round(d.delay_seconds) : 0,
+    label: d.ingestion_timestamp ? new Date(d.ingestion_timestamp).toLocaleDateString() : "",
+  }));
+
+  const barData = categoryData.map((c) => ({
+    label: c.risk_category.replace(/_/g, " "),
+    value: c.count,
+    color: CAT_COLORS[c.risk_category] || CAT_COLORS.unknown,
+  }));
+
+  const completionRate = summary && summary.total_quotes > 0
+    ? Math.round((summary.completed_quotes / summary.total_quotes) * 100)
+    : 0;
+
+  return (
+    <div className="bg-[#13141f] min-h-full">
+      <PageHeader title="Analytics" subtitle="Pipeline metrics and performance dashboards" />
+      <div className="p-6 max-w-[1200px] mx-auto space-y-6">
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-6 h-6 border-2 border-teal-400 border-t-transparent rounded-full step-spinner" />
+            <span className="ml-3 text-white/40 text-sm">Loading analytics...</span>
+          </div>
+        )}
+        {!loading && error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-6 text-center">
+            <p className="text-red-400 text-sm font-medium">Failed to load analytics</p>
+            <p className="text-red-400/60 text-xs mt-1">{error}</p>
+          </div>
+        )}
+        {!loading && summary && (
+          <>
+            {/* Summary counters */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Total Quotes" value={summary.total_quotes} />
+              <StatCard label="Completed" value={summary.completed_quotes} sub={`${completionRate}% completion rate`} color="text-teal-400" />
+              <StatCard label="Auto-Approved" value={summary.auto_approved} color="text-emerald-400" />
+              <StatCard label="Auto-Declined" value={summary.auto_declined} color="text-red-400" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Pending Review" value={summary.pending_review} color="text-amber-400" />
+              <StatCard label="UW Approved" value={summary.uw_approved} color="text-emerald-400" />
+              <StatCard label="UW Declined" value={summary.uw_declined} color="text-red-400" />
+              <StatCard label="Avg Auto-Approved Time" value={formatDuration(summary.avg_auto_approved_seconds)} sub="Ingested to Completed" color="text-cyan-400" />
+            </div>
+
+            {/* Response Delay Line Chart */}
+            {chartData.length > 0 && (
+              <div className="bg-[#1e2030] rounded-xl border border-white/5 p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-teal-400" />
+                  <h3 className="text-sm font-semibold text-white">Auto-Approved Response Delay</h3>
+                </div>
+                <p className="text-xs text-white/30 mb-4 ml-4">Time from email ingestion to quote completion (seconds)</p>
+                <SvgLineChart data={chartData} />
+              </div>
+            )}
+
+            {/* Quotes by Category */}
+            {barData.length > 0 && (
+              <div className="bg-[#1e2030] rounded-xl border border-white/5 p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-purple-400" />
+                  <h3 className="text-sm font-semibold text-white">Quotes by Risk Category</h3>
+                </div>
+                <p className="text-xs text-white/30 mb-4 ml-4">Distribution of quotes across industry categories</p>
+                <SvgBarChart data={barData} />
+              </div>
+            )}
+
+            {/* Category detail table */}
+            {categoryData.length > 0 && (
+              <div className="bg-[#1e2030] rounded-xl border border-white/5 overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400" />
+                    <h3 className="text-sm font-semibold text-white">Category Breakdown</h3>
+                  </div>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/[0.02] text-left">
+                      <th className="px-6 py-2 text-[11px] text-white/30 uppercase tracking-wider font-medium">Category</th>
+                      <th className="px-6 py-2 text-[11px] text-white/30 uppercase tracking-wider font-medium text-right">Quotes</th>
+                      <th className="px-6 py-2 text-[11px] text-white/30 uppercase tracking-wider font-medium text-right">Avg Risk Score</th>
+                      <th className="px-6 py-2 text-[11px] text-white/30 uppercase tracking-wider font-medium text-right">Avg Premium</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryData.map((c) => (
+                      <tr key={c.risk_category} className="border-t border-white/[0.03] hover:bg-white/[0.02]">
+                        <td className="px-6 py-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${RISK_CAT_COLORS[c.risk_category] || "bg-white/10 text-white/50"}`}>
+                            {c.risk_category.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td className="px-6 py-2.5 text-right font-medium text-white">{c.count}</td>
+                        <td className="px-6 py-2.5 text-right text-white/60">{c.avg_risk_score != null ? c.avg_risk_score.toFixed(1) : "--"}</td>
+                        <td className="px-6 py-2.5 text-right text-white/60">{c.avg_premium != null ? formatCurrency(c.avg_premium) : "--"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Placeholder page ───────────────────────────────────────────────────────
 
 function PlaceholderPage({ title, description }: { title: string; description: string }) {
@@ -1009,12 +1741,12 @@ function PlaceholderPage({ title, description }: { title: string; description: s
       <PageHeader title={title} subtitle={description} />
       <div className="flex items-center justify-center h-[50vh]">
         <div className="text-center">
-          <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-6 h-6 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <p className="text-sm text-gray-400">Coming soon</p>
+          <p className="text-sm text-white/40">Coming soon</p>
         </div>
       </div>
     </div>
@@ -1024,7 +1756,7 @@ function PlaceholderPage({ title, description }: { title: string; description: s
 // ─── App ────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [page, setPage] = useState<Page>("processing");
+  const [page, setPage] = useState<Page>("analytics");
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1048,12 +1780,13 @@ export default function App() {
   }, [fetchQuotes]);
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-[#13141f] overflow-hidden">
       <Sidebar activePage={page} onNavigate={setPage} />
-      <main className="flex-1 min-w-0 ml-56">
+      <main className="flex-1 min-w-0 ml-56 h-full overflow-y-auto flex flex-col">
+        {page === "email_intake" && <EmailIntakePage />}
         {page === "processing" && <QuoteProcessingPage quotes={quotes} loading={loading} error={error} />}
         {page === "placeholder1" && <UnderwriterReviewPage />}
-        {page === "placeholder2" && <PlaceholderPage title="Analytics" description="Coming soon -- pipeline metrics and dashboards" />}
+        {page === "analytics" && <AnalyticsPage />}
       </main>
     </div>
   );

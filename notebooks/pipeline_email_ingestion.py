@@ -20,6 +20,7 @@
 # MAGIC | 7 | `pipe_quote_creation` | Coverage-level premium calculation from auto-approved quotes |
 # MAGIC | 8 | `pipe_pdf_created` | PDF quote document generation and volume storage |
 # MAGIC | 9 | `pipe_completed` | Terminal state: unifies all completed quote paths (auto-declined and PDF-issued) |
+# MAGIC | 10 | `pipe_response_email` | LLM-generated response email saved to outgoing_email volume |
 
 # COMMAND ----------
 
@@ -1037,10 +1038,11 @@ def generate_quote_pdf(quote_json, output_path, executive_summary):
 
         class QuotePDF(FPDF):
             def cell(self, *args, **kwargs):
-                # Sanitize the text argument (positional arg 4 or kwarg 'text'/'txt')
+                # Sanitize any positional string args and text/txt kwargs
                 args = list(args)
-                if len(args) >= 4 and isinstance(args[3], str):
-                    args[3] = _safe(args[3])
+                for idx in range(len(args)):
+                    if isinstance(args[idx], str):
+                        args[idx] = _safe(args[idx])
                 for k in ("text", "txt"):
                     if k in kwargs and isinstance(kwargs[k], str):
                         kwargs[k] = _safe(kwargs[k])
@@ -1048,8 +1050,9 @@ def generate_quote_pdf(quote_json, output_path, executive_summary):
 
             def multi_cell(self, *args, **kwargs):
                 args = list(args)
-                if len(args) >= 4 and isinstance(args[3], str):
-                    args[3] = _safe(args[3])
+                for idx in range(len(args)):
+                    if isinstance(args[idx], str):
+                        args[idx] = _safe(args[idx])
                 for k in ("text", "txt"):
                     if k in kwargs and isinstance(kwargs[k], str):
                         kwargs[k] = _safe(kwargs[k])
@@ -1372,7 +1375,7 @@ def pipe_pdf_created():
     result = result.withColumn(
         "pdf_executive_summary",
         F.when(
-            F.col("decision_tag") == "auto-approved",
+            F.col("decision_tag").isin("auto-approved", "uw-approved"),
             F.expr(f"""
                 ai_query('{LLM_ENDPOINT}', CONCAT(
                     'You are writing the executive summary paragraph for a commercial ',
@@ -1396,7 +1399,7 @@ def pipe_pdf_created():
     result = result.withColumn(
         "pdf_output_path",
         F.when(
-            F.col("decision_tag") == "auto-approved",
+            F.col("decision_tag").isin("auto-approved", "uw-approved"),
             F.concat(F.lit(QUOTE_VOLUME_PATH + "/"),
                      F.col("quote_number"), F.lit(".pdf")),
         ).otherwise(F.lit(None)),
@@ -1406,7 +1409,7 @@ def pipe_pdf_created():
     result = result.withColumn(
         "pdf_result",
         F.when(
-            F.col("decision_tag") == "auto-approved",
+            F.col("decision_tag").isin("auto-approved", "uw-approved"),
             generate_quote_pdf(
                 F.col("quote_data_json"),
                 F.col("pdf_output_path"),
@@ -1420,7 +1423,7 @@ def pipe_pdf_created():
         "decision_tag", "review_summary", "pdf_executive_summary",
         F.coalesce(F.col("pdf_result.pdf_path"), F.lit(None)).alias("pdf_path"),
         F.when(
-            F.col("decision_tag") == "auto-approved",
+            F.col("decision_tag").isin("auto-approved", "uw-approved"),
             F.coalesce(F.col("pdf_result.pdf_status"), F.lit("error")),
         ).otherwise("skipped").alias("pdf_status"),
         F.col("pdf_result.pdf_error").alias("pdf_error"),
@@ -1495,3 +1498,196 @@ def pipe_completed():
     )
 
     return from_pdf.unionByName(from_declined)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Step 10 – Response Email (Streaming Table)
+# MAGIC
+# MAGIC Uses an LLM to generate a professional response email for each completed quote:
+# MAGIC - **Approved quotes** get a detailed quote summary with coverage breakdown and next steps
+# MAGIC - **Declined quotes** get a polite notification with guidance on how to proceed
+# MAGIC
+# MAGIC The generated `.eml` file is saved to the `outgoing_email` volume for delivery.
+
+# COMMAND ----------
+
+OUTGOING_VOLUME_PATH = f"/Volumes/{CATALOG}/{SCHEMA}/outgoing_email"
+
+RESPONSE_EMAIL_PROMPT_APPROVED = """You are the senior underwriting manager at BricksHouse Insurance Company.
+Write a professional, warm, and detailed email to the customer with their approved insurance quote.
+
+RULES:
+- Address the customer by name
+- Reference their business name
+- Include the quote number prominently
+- List each coverage line with its premium amount
+- State the total annual premium clearly
+- Mention the policy effective and expiration dates
+- Include next steps: review the quote, contact with questions, reply to bind
+- Note the quote is valid for 30 days
+- Sign off as "BricksHouse Insurance Underwriting Team"
+- Include phone (555) 123-4567 and email underwriting@brickshouse-insurance.com
+- Keep it professional but personable
+- Do NOT include email headers (From, To, Subject, etc.) - just the body text
+
+QUOTE DATA:
+"""
+
+RESPONSE_EMAIL_PROMPT_DECLINED = """You are the senior underwriting manager at BricksHouse Insurance Company.
+Write a professional, empathetic email to the customer informing them their quote request was declined.
+
+RULES:
+- Address the customer by name
+- Reference their business name
+- Be respectful and empathetic - do NOT be blunt
+- Briefly mention the assessment without being overly specific about risk details
+- Suggest they can: contact to discuss, provide additional information, or try again in the future
+- Sign off as "BricksHouse Insurance Underwriting Team"
+- Include phone (555) 123-4567 and email underwriting@brickshouse-insurance.com
+- Do NOT include email headers (From, To, Subject, etc.) - just the body text
+
+QUOTE DATA:
+"""
+
+
+@dlt.table(
+    name="pipe_response_email",
+    comment="LLM-generated response emails for completed quotes, saved to outgoing_email volume.",
+    table_properties={
+        "quality": "gold",
+        "pipelines.autoOptimize.managed": "true",
+    },
+)
+def pipe_response_email():
+    completed = dlt.read_stream("pipe_completed")
+
+    # Build a context column with all relevant quote details
+    result = completed.withColumn(
+        "quote_context",
+        F.concat(
+            F.lit("Customer Name: "), F.coalesce(F.col("business_name"), F.lit("N/A")),
+            F.lit("\nRisk Category: "), F.coalesce(F.col("risk_category"), F.lit("N/A")),
+            F.lit("\nDecision: "), F.coalesce(F.col("decision_tag"), F.lit("N/A")),
+            F.lit("\nRisk Band: "), F.coalesce(F.col("risk_band"), F.lit("N/A")),
+            F.lit("\nRisk Score: "), F.coalesce(F.col("risk_score").cast("string"), F.lit("N/A")),
+            F.lit("\nReview Summary: "), F.coalesce(F.col("review_summary"), F.lit("N/A")),
+            F.lit("\nQuote Number: "), F.coalesce(F.col("quote_number"), F.lit("N/A")),
+            F.lit("\nTotal Premium: $"), F.coalesce(F.format_number(F.col("total_premium"), 2), F.lit("N/A")),
+            F.lit("\nFinal Status: "), F.coalesce(F.col("final_status"), F.lit("N/A")),
+        ),
+    )
+
+    # Determine which prompt to use based on decision
+    result = result.withColumn(
+        "email_prompt",
+        F.when(
+            F.col("decision_tag").isin("auto-approved", "uw-approved"),
+            F.concat(
+                F.lit(RESPONSE_EMAIL_PROMPT_APPROVED.replace("'", "''")),
+                F.col("quote_context"),
+            ),
+        ).otherwise(
+            F.concat(
+                F.lit(RESPONSE_EMAIL_PROMPT_DECLINED.replace("'", "''")),
+                F.col("quote_context"),
+            ),
+        ),
+    )
+
+    # Generate email body via LLM
+    result = result.withColumn(
+        "email_body",
+        F.expr(f"ai_query('{LLM_ENDPOINT}', email_prompt, 'STRING')"),
+    )
+
+    # Build email subject
+    result = result.withColumn(
+        "email_subject",
+        F.when(
+            F.col("decision_tag").isin("auto-approved", "uw-approved"),
+            F.concat(
+                F.lit("Your Commercial Insurance Quote "),
+                F.coalesce(F.col("quote_number"), F.lit("")),
+                F.lit(" - "),
+                F.coalesce(F.col("business_name"), F.lit("Your Business")),
+            ),
+        ).otherwise(
+            F.concat(
+                F.lit("Quote Request Update - "),
+                F.coalesce(F.col("business_name"), F.lit("Your Business")),
+            ),
+        ),
+    )
+
+    # Build the .eml file name
+    result = result.withColumn(
+        "eml_file_name",
+        F.concat(
+            F.when(F.col("decision_tag").isin("auto-approved", "uw-approved"), F.lit("quote_"))
+             .otherwise(F.lit("declined_")),
+            F.coalesce(F.col("quote_number"), F.lit("NONE")),
+            F.lit("_"),
+            F.substring(F.col("email_id"), 1, 8),
+            F.lit(".eml"),
+        ),
+    )
+
+    # Build full .eml content
+    result = result.withColumn(
+        "eml_content",
+        F.concat(
+            F.lit("From: underwriting@brickshouse-insurance.com\n"),
+            F.lit("To: customer@placeholder.com\n"),
+            F.lit("Subject: "), F.col("email_subject"), F.lit("\n"),
+            F.lit("Date: "), F.date_format(F.current_timestamp(), "EEE, dd MMM yyyy HH:mm:ss +0000"), F.lit("\n"),
+            F.lit("MIME-Version: 1.0\n"),
+            F.lit("Content-Type: text/plain; charset=\"UTF-8\"\n"),
+            F.lit("Message-ID: <"), F.col("email_id"), F.lit("@brickshouse-insurance.com>\n"),
+            F.lit("\n"),
+            F.col("email_body"),
+        ),
+    )
+
+    # Write the .eml file to the outgoing_email volume
+    result = result.withColumn(
+        "eml_volume_path",
+        F.concat(F.lit(OUTGOING_VOLUME_PATH + "/"), F.col("eml_file_name")),
+    )
+
+    # Use copy_into-style approach: write the file content via a UDF
+    @F.udf("string")
+    def write_eml_to_volume(eml_content: str, file_path: str) -> str:
+        """Write an .eml file to a Unity Catalog Volume and return the path."""
+        try:
+            import os
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(eml_content)
+            return file_path
+        except Exception as e:
+            return f"ERROR: {e}"
+
+    result = result.withColumn(
+        "eml_write_status",
+        write_eml_to_volume(F.col("eml_content"), F.col("eml_volume_path")),
+    )
+
+    result = result.withColumn("response_timestamp", F.current_timestamp())
+
+    return result.select(
+        "email_id",
+        "business_name",
+        "decision_tag",
+        "final_status",
+        "quote_number",
+        "total_premium",
+        "email_subject",
+        "email_body",
+        "eml_file_name",
+        "eml_volume_path",
+        "eml_write_status",
+        "ingestion_timestamp",
+        "completed_timestamp",
+        "response_timestamp",
+    )
