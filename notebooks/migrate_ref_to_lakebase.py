@@ -6,10 +6,14 @@
 
 import psycopg
 
-LB_HOST = "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com"
-LB_DB = "databricks_postgres"
-LB_USER = "fc0bfb5f-6069-4a8f-b4ce-84cc19949784"
-LB_PASSWORD = "BricksH0use!Ins2026#"
+import os
+
+ENDPOINT_RESOURCE = os.environ.get(
+    "LAKEBASE_ENDPOINT",
+    "projects/emai2quote/branches/production/endpoints/primary",
+)
+LB_HOST = os.environ.get("LAKEBASE_HOST", "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com")
+LB_DB = os.environ.get("LAKEBASE_DB", "databricks_postgres")
 LB_SCHEMA = "email_to_quote"
 UC_CATALOG = "dvin100_email_to_quote"
 UC_SCHEMA = "email_to_quote"
@@ -168,9 +172,12 @@ TABLES_DDL = {
 
 # COMMAND ----------
 
-# Connect to Lakebase
+# Connect to Lakebase using OAuth credential
+from databricks.sdk import WorkspaceClient
+w = WorkspaceClient()
+cred = w.postgres.generate_database_credential(ENDPOINT_RESOURCE)
 conn = psycopg.connect(
-    host=LB_HOST, dbname=LB_DB, user=LB_USER, password=LB_PASSWORD,
+    host=LB_HOST, dbname=LB_DB, user=w.config.username, password=cred.token,
     sslmode="require", options=f"-csearch_path={LB_SCHEMA}",
 )
 cur = conn.cursor()

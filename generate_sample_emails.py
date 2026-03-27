@@ -9,6 +9,7 @@ and writes to Lakebase PostgreSQL.
 """
 
 import json
+import os
 import random
 import subprocess
 import tempfile
@@ -28,10 +29,8 @@ UC_CATALOG = "dvin100_email_to_quote"
 UC_SCHEMA = "email_to_quote"
 WAREHOUSE_ID = "9d37ebbf410ea6d5"
 
-LB_HOST = "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com"
-LB_DB = "databricks_postgres"
-LB_USER = "fc0bfb5f-6069-4a8f-b4ce-84cc19949784"
-LB_PASSWORD = "BricksH0use!Ins2026#"
+LB_HOST = os.environ.get("LAKEBASE_HOST", "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com")
+LB_DB = os.environ.get("LAKEBASE_DB", "databricks_postgres")
 LB_SCHEMA = "email_to_quote"
 
 # 12 per risk category × 10 categories = 120 base, add a few extras
