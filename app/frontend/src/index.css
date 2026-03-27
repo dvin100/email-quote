@@ -4,7 +4,6 @@
 
 body {
   margin: 0;
-  background-color: #f8f9fa;
   font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -25,3 +24,151 @@ body {
 .expand-enter {
   animation: fadeSlide 0.2s ease-out forwards;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE
+   Everything inside .light-mode gets light treatment.
+   The sidebar (<aside>) is excluded and stays dark.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar: light treatment ──────────────────────────────────────────── */
+
+/* ── Root & main backgrounds ───────────────────────────────────────────── */
+.light-mode.bg-\[\#13141f\] { background-color: #eef0f4 !important; }
+.light-mode .bg-\[\#13141f\] { background-color: #eef0f4 !important; }
+.light-mode .bg-\[\#1e2030\] { background-color: #ffffff !important; }
+.light-mode .bg-\[\#13141f\]\/50 { background-color: #f3f4f7 !important; }
+.light-mode .bg-\[\#282a3a\] { background-color: #ffffff !important; }
+
+/* Sidebar bg — light */
+.light-mode > aside.w-56 { background-color: #f7f8fa !important; border-right-color: #e5e7eb !important; }
+
+/* bg-sidebar used in PageHeader, chat header, floating button */
+.light-mode .bg-sidebar { background-color: #f7f8fa !important; }
+/* Floating chat button when open */
+.light-mode button.bg-sidebar { background-color: #374151 !important; }
+
+/* ── Text: all white/* variants ────────────────────────────────────────── */
+.light-mode .text-white     { color: #111827 !important; }
+.light-mode .text-white\/90 { color: #1f2937 !important; }
+.light-mode .text-white\/80 { color: #374151 !important; }
+.light-mode .text-white\/70 { color: #4b5563 !important; }
+.light-mode .text-white\/60 { color: #6b7280 !important; }
+.light-mode .text-white\/50 { color: #6b7280 !important; }
+.light-mode .text-white\/40 { color: #9ca3af !important; }
+.light-mode .text-white\/30 { color: #9ca3af !important; }
+.light-mode .text-white\/20 { color: #d1d5db !important; }
+
+
+/* ── Borders ───────────────────────────────────────────────────────────── */
+.light-mode .border-white\/5    { border-color: #e5e7eb !important; }
+.light-mode .border-white\/10   { border-color: #d1d5db !important; }
+.light-mode .border-white\/20   { border-color: #9ca3af !important; }
+.light-mode .border-white\/\[0\.03\] { border-color: #f3f4f6 !important; }
+
+/* ── Background fills ──────────────────────────────────────────────────── */
+.light-mode .bg-white\/5          { background-color: #f3f4f6 !important; }
+.light-mode .bg-white\/10         { background-color: #e5e7eb !important; }
+.light-mode .bg-white\/15         { background-color: #d1d5db !important; }
+.light-mode .bg-white\/20         { background-color: #d1d5db !important; }
+.light-mode .bg-white\/\[0\.02\]  { background-color: #f9fafb !important; }
+
+/* ── Hover states ──────────────────────────────────────────────────────── */
+.light-mode .hover\:bg-white\/5:hover  { background-color: #eef0f3 !important; }
+.light-mode .hover\:bg-white\/10:hover { background-color: #e5e7eb !important; }
+.light-mode .hover\:bg-white\/15:hover { background-color: #d1d5db !important; }
+.light-mode .hover\:text-white\/50:hover { color: #6b7280 !important; }
+.light-mode .hover\:text-white\/80:hover { color: #374151 !important; }
+.light-mode .hover\:border-white\/10:hover { border-color: #9ca3af !important; }
+.light-mode .hover\:bg-white\/\[0\.02\]:hover { background-color: #f3f4f6 !important; }
+
+/* ── Placeholders ──────────────────────────────────────────────────────── */
+.light-mode .placeholder-white\/20::placeholder { color: #9ca3af !important; }
+.light-mode .placeholder-white\/30::placeholder { color: #9ca3af !important; }
+
+/* ── Focus rings ───────────────────────────────────────────────────────── */
+.light-mode .ring-offset-\[\#1e2030\] { --tw-ring-offset-color: #ffffff !important; }
+
+/* ── Input fields — strong overrides ───────────────────────────────────── */
+.light-mode input:not(aside *),
+.light-mode textarea:not(aside *) {
+  background-color: #f9fafb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+}
+.light-mode input:not(aside *)::placeholder,
+.light-mode textarea:not(aside *)::placeholder {
+  color: #9ca3af !important;
+}
+.light-mode input:not(aside *):focus,
+.light-mode textarea:not(aside *):focus {
+  border-color: #FF3621 !important;
+  box-shadow: 0 0 0 3px rgba(255, 54, 33, 0.12) !important;
+}
+
+/* ── Badge backgrounds — stronger on light ─────────────────────────────── */
+.light-mode .bg-emerald-500\/10 { background-color: rgba(16, 185, 129, 0.15) !important; }
+.light-mode .bg-amber-500\/10   { background-color: rgba(245, 158, 11, 0.15) !important; }
+.light-mode .bg-red-500\/10     { background-color: rgba(239, 68, 68, 0.15) !important; }
+.light-mode .bg-blue-500\/10    { background-color: rgba(59, 130, 246, 0.15) !important; }
+.light-mode .bg-orange-500\/10  { background-color: rgba(249, 115, 22, 0.15) !important; }
+.light-mode .bg-cyan-500\/10    { background-color: rgba(6, 182, 212, 0.15) !important; }
+.light-mode .bg-purple-500\/10  { background-color: rgba(139, 92, 246, 0.15) !important; }
+.light-mode .bg-rose-500\/10    { background-color: rgba(244, 63, 94, 0.15) !important; }
+.light-mode .bg-slate-500\/10   { background-color: rgba(100, 116, 139, 0.15) !important; }
+.light-mode .bg-yellow-500\/10  { background-color: rgba(234, 179, 8, 0.15) !important; }
+.light-mode .bg-indigo-500\/10  { background-color: rgba(99, 102, 241, 0.15) !important; }
+.light-mode .bg-teal-500\/10    { background-color: rgba(20, 184, 166, 0.15) !important; }
+.light-mode .bg-pink-500\/10    { background-color: rgba(236, 72, 153, 0.15) !important; }
+
+/* Filter pill /20 variants */
+.light-mode .bg-emerald-500\/20 { background-color: rgba(16, 185, 129, 0.2) !important; }
+.light-mode .bg-amber-500\/20   { background-color: rgba(245, 158, 11, 0.2) !important; }
+.light-mode .bg-red-500\/20     { background-color: rgba(239, 68, 68, 0.2) !important; }
+.light-mode .bg-blue-500\/20    { background-color: rgba(59, 130, 246, 0.2) !important; }
+.light-mode .bg-cyan-500\/20    { background-color: rgba(6, 182, 212, 0.2) !important; }
+
+/* Badge text — darker for readability */
+.light-mode .text-emerald-400 { color: #059669 !important; }
+.light-mode .text-amber-400   { color: #d97706 !important; }
+.light-mode .text-red-400     { color: #dc2626 !important; }
+.light-mode .text-blue-400    { color: #2563eb !important; }
+.light-mode .text-orange-400  { color: #ea580c !important; }
+.light-mode .text-cyan-400    { color: #0891b2 !important; }
+.light-mode .text-teal-400    { color: #0d9488 !important; }
+.light-mode .text-purple-400  { color: #7c3aed !important; }
+.light-mode .text-rose-400    { color: #e11d48 !important; }
+.light-mode .text-slate-300   { color: #475569 !important; }
+.light-mode .text-yellow-400  { color: #ca8a04 !important; }
+.light-mode .text-indigo-400  { color: #4f46e5 !important; }
+.light-mode .text-pink-400    { color: #db2777 !important; }
+
+/* ── Brick primary ─────────────────────────────────────────────────────── */
+.light-mode .text-brick-primary { color: #FF3621 !important; }
+.light-mode .bg-brick-primary\/10 { background-color: rgba(255, 54, 33, 0.08) !important; }
+.light-mode .bg-brick-primary\/20 { background-color: rgba(255, 54, 33, 0.12) !important; }
+.light-mode .border-l-brick-primary { border-left-color: #FF3621 !important; }
+
+/* ── Card depth — subtle shadow on white cards ─────────────────────────── */
+.light-mode .bg-\[\#1e2030\].rounded-xl,
+.light-mode .bg-\[\#1e2030\].rounded-lg {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* ── Modal overlay ─────────────────────────────────────────────────────── */
+.light-mode .bg-black\/50 { background-color: rgba(0, 0, 0, 0.25) !important; }
+
+/* ── SVG Charts ────────────────────────────────────────────────────────── */
+.light-mode svg text[fill="rgba(255,255,255,0.3)"] { fill: #6b7280 !important; }
+.light-mode svg text[fill="white"]                  { fill: #111827 !important; }
+.light-mode svg line[stroke="rgba(255,255,255,0.06)"] { stroke: #e5e7eb !important; }
+.light-mode svg rect[fill="#282a3a"] { fill: #ffffff !important; stroke: #d1d5db !important; }
+
+/* ── Pipeline spinner bg override ──────────────────────────────────────── */
+.light-mode .step-spinner.bg-\[\#1e2030\] { background-color: #ffffff !important; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+.light-mode *:not(aside *)::-webkit-scrollbar { width: 6px; }
+.light-mode *:not(aside *)::-webkit-scrollbar-track { background: #f3f4f6; }
+.light-mode *:not(aside *)::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+.light-mode *:not(aside *)::-webkit-scrollbar-thumb:hover { background: #9ca3af; }

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1900" viewBox="0 0 1500 1900">
+  <defs>
+    <marker id="ah_1565C0" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#1565C0"/></marker>
+    <marker id="ah_2E7D32" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#2E7D32"/></marker>
+    <marker id="ah_E65100" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#E65100"/></marker>
+    <marker id="ah_6A1B9A" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#6A1B9A"/></marker>
+    <marker id="ah_546E7A" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#546E7A"/></marker>
+  </defs>
+  <rect width="1500" height="1900" fill="#F5F7FA"/>
+<rect x="20" y="12" width="1460" height="60" rx="10" ry="10" fill="#0D47A1" stroke="#0D47A1" stroke-width="2"/>
+<text x="750" y="42" font-family="Segoe UI,Arial,sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central">Email-to-Quote Pipeline: Underwriter Combined Flow</text>
+<rect x="210" y="90" width="450" height="1046" rx="14" fill="none" stroke="#1565C0" stroke-width="1.5" stroke-dasharray="7,4" opacity="0.5"/>
+<text x="430" y="104" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="bold" fill="#1565C0" text-anchor="middle" dominant-baseline="central">EXISTING FLOW  (no changes)</text>
+<rect x="820" y="90" width="460" height="604" rx="14" fill="none" stroke="#2E7D32" stroke-width="1.5" stroke-dasharray="7,4" opacity="0.5"/>
+<text x="1050" y="104" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="bold" fill="#2E7D32" text-anchor="middle" dominant-baseline="central">NEW UNDERWRITER FLOW  (additive)</text>
+<rect x="310" y="110" width="240" height="46" rx="8" ry="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="133" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_email_received</text>
+<rect x="310" y="200" width="240" height="46" rx="8" ry="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="223" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_email_parsed</text>
+<rect x="310" y="290" width="240" height="46" rx="8" ry="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="313" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_email_enriched</text>
+<rect x="310" y="380" width="240" height="46" rx="8" ry="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="403" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_quote_features</text>
+<rect x="310" y="470" width="240" height="46" rx="8" ry="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="493" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_quote_risk_scoring</text>
+<rect x="310" y="560" width="240" height="46" rx="8" ry="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="583" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_quote_review</text>
+<line x1="430" y1="156" x2="430" y2="200" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<line x1="430" y1="246" x2="430" y2="290" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<line x1="430" y1="336" x2="430" y2="380" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<line x1="430" y1="426" x2="430" y2="470" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<line x1="430" y1="516" x2="430" y2="560" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<line x1="430" y1="606" x2="430" y2="624" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<polygon points="430,624 510,660 430,696 350,660" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="660" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">routing decision</text>
+<line x1="430" y1="696" x2="430" y2="810" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<rect x="446" y="712" width="78" height="16" fill="white" opacity="0.85"/>
+<text x="485" y="720" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#1565C0" text-anchor="middle" dominant-baseline="central">auto-approved</text>
+<rect x="295" y="810" width="270" height="46" rx="8" ry="8" fill="#FFE0B2" stroke="#E65100" stroke-width="2"/>
+<text x="430" y="833" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_quote_creation</text>
+<rect x="310" y="920" width="240" height="46" rx="8" ry="8" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="430" y="943" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_pdf_created</text>
+<rect x="295" y="1030" width="270" height="46" rx="8" ry="8" fill="#FFE0B2" stroke="#E65100" stroke-width="2"/>
+<text x="430" y="1053" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">pipe_completed</text>
+<line x1="430" y1="856" x2="430" y2="920" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<line x1="430" y1="966" x2="430" y2="1030" stroke="#1565C0" stroke-width="2.5" marker-end="url(#ah_1565C0)"/>
+<rect x="125" y="730" width="190" height="44" rx="8" ry="8" fill="#ECEFF1" stroke="#546E7A" stroke-width="2"/>
+<text x="220" y="752" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="bold" fill="#546E7A" text-anchor="middle" dominant-baseline="central">awaits underwriter</text>
+<polyline points="350,660 315,660 315,752" fill="none" stroke="#546E7A" stroke-width="2.5" marker-end="url(#ah_546E7A)"/>
+<rect x="258" y="638" width="84" height="16" fill="white" opacity="0.85"/>
+<text x="300" y="646" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#546E7A" text-anchor="middle" dominant-baseline="central">pending-review</text>
+<polyline points="350,668 190,668 190,1053 295,1053" fill="none" stroke="#1565C0" stroke-width="2.5" stroke-dasharray="6,3" marker-end="url(#ah_1565C0)"/>
+<rect x="141" y="732" width="78" height="16" fill="white" opacity="0.85"/>
+<text x="180" y="740" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#1565C0" text-anchor="end" dominant-baseline="central">auto-declined</text>
+<rect x="900" y="110" width="300" height="46" rx="8" ry="8" fill="#C8E6C9" stroke="#2E7D32" stroke-width="2"/>
+<text x="1050" y="126.1" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">Lakebase PostgreSQL</text>
+<text x="1050" y="141.28" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="normal" fill="#546E7A" text-anchor="middle" dominant-baseline="central">external source</text>
+<rect x="890" y="230" width="320" height="46" rx="8" ry="8" fill="#C8E6C9" stroke="#2E7D32" stroke-width="2"/>
+<text x="1050" y="246.1" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">underwriter table</text>
+<text x="1050" y="261.28" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="normal" fill="#546E7A" text-anchor="middle" dominant-baseline="central">decision: uw-approved | uw-declined | uw-info</text>
+<line x1="1050" y1="156" x2="1050" y2="230" stroke="#2E7D32" stroke-width="2.5" marker-end="url(#ah_2E7D32)"/>
+<rect x="1079" y="176" width="102" height="16" fill="white" opacity="0.85"/>
+<text x="1130" y="184" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#2E7D32" text-anchor="middle" dominant-baseline="central">JDBC / SDP ingest</text>
+<line x1="1050" y1="276" x2="1050" y2="334" stroke="#2E7D32" stroke-width="2.5" marker-end="url(#ah_2E7D32)"/>
+<polygon points="1050,334 1140,370 1050,406 960,370" fill="#C8E6C9" stroke="#2E7D32" stroke-width="2"/>
+<text x="1050" y="370" font-family="Segoe UI,Arial,sans-serif" font-size="11" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">uw decision field</text>
+<line x1="1050" y1="406" x2="1050" y2="460" stroke="#2E7D32" stroke-width="2.5" marker-end="url(#ah_2E7D32)"/>
+<rect x="1082" y="424" width="66" height="16" fill="white" opacity="0.85"/>
+<text x="1115" y="432" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#2E7D32" text-anchor="middle" dominant-baseline="central">uw-approved</text>
+<rect x="945" y="460" width="210" height="44" rx="22" ry="22" fill="#EDE7F6" stroke="#6A1B9A" stroke-width="2"/>
+<text x="1050" y="475.4" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="bold" fill="#6A1B9A" text-anchor="middle" dominant-baseline="central">JOIN: underwriter</text>
+<text x="1050" y="489.92" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="normal" fill="#6A1B9A" text-anchor="middle" dominant-baseline="central">+ pipe_quote_review  →  pipe_quote_creation</text>
+<polyline points="550,583 905,583 905,482 945,482" fill="none" stroke="#6A1B9A" stroke-width="2.5" stroke-dasharray="6,3" marker-end="url(#ah_6A1B9A)"/>
+<rect x="667" y="561" width="126" height="16" fill="white" opacity="0.85"/>
+<text x="730" y="569" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#6A1B9A" text-anchor="middle" dominant-baseline="central">pipe_quote_review ref</text>
+<polyline points="1050,504 1050,530 585,530 585,833 565,833" fill="none" stroke="#2E7D32" stroke-width="2.5" marker-end="url(#ah_2E7D32)"/>
+<rect x="770" y="508" width="60" height="16" fill="white" opacity="0.85"/>
+<text x="800" y="516" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#2E7D32" text-anchor="middle" dominant-baseline="central">2nd source</text>
+<polyline points="1140,378 1210,378 1210,612 1155,612" fill="none" stroke="#E65100" stroke-width="2.5" marker-end="url(#ah_E65100)"/>
+<rect x="1177" y="442" width="126" height="16" fill="white" opacity="0.85"/>
+<text x="1240" y="450" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#E65100" text-anchor="start" dominant-baseline="central">uw-declined / uw-info</text>
+<rect x="945" y="590" width="210" height="44" rx="22" ry="22" fill="#EDE7F6" stroke="#6A1B9A" stroke-width="2"/>
+<text x="1050" y="605.4" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="bold" fill="#6A1B9A" text-anchor="middle" dominant-baseline="central">JOIN: underwriter</text>
+<text x="1050" y="619.92" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="normal" fill="#6A1B9A" text-anchor="middle" dominant-baseline="central">+ pipe_quote_review  →  pipe_completed</text>
+<polyline points="550,583 905,583 905,612 945,612" fill="none" stroke="#6A1B9A" stroke-width="2.5" stroke-dasharray="6,3" marker-end="url(#ah_6A1B9A)"/>
+<polyline points="1050,634 1050,658 605,658 605,1053 565,1053" fill="none" stroke="#E65100" stroke-width="2.5" marker-end="url(#ah_E65100)"/>
+<rect x="778" y="636" width="84" height="16" fill="white" opacity="0.85"/>
+<text x="820" y="644" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="bold" fill="#E65100" text-anchor="middle" dominant-baseline="central">2nd/3rd source</text>
+<rect x="615" y="820" width="110" height="20" rx="5" ry="5" fill="#FFE0B2" stroke="#E65100" stroke-width="2"/>
+<text x="670" y="830" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="bold" fill="#E65100" text-anchor="middle" dominant-baseline="central">multi-source</text>
+<rect x="615" y="1040" width="110" height="20" rx="5" ry="5" fill="#FFE0B2" stroke="#E65100" stroke-width="2"/>
+<text x="670" y="1050" font-family="Segoe UI,Arial,sans-serif" font-size="9" font-weight="bold" fill="#E65100" text-anchor="middle" dominant-baseline="central">multi-source</text>
+<rect x="46" y="1730" width="460" height="130" rx="8" ry="8" fill="#FFFFFF" stroke="#BDBDBD" stroke-width="2"/>
+<text x="160" y="1745" font-family="Segoe UI,Arial,sans-serif" font-size="12" font-weight="bold" fill="#212121" text-anchor="middle" dominant-baseline="central">Legend</text>
+<rect x="60" y="1768" width="24" height="16" rx="4" ry="4" fill="#BBDEFB" stroke="#1565C0" stroke-width="2"/>
+<text x="92" y="1776" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="normal" fill="#212121" text-anchor="start" dominant-baseline="central">Existing pipeline tables  (not modified)</text>
+<rect x="60" y="1794" width="24" height="16" rx="4" ry="4" fill="#C8E6C9" stroke="#2E7D32" stroke-width="2"/>
+<text x="92" y="1802" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="normal" fill="#212121" text-anchor="start" dominant-baseline="central">New underwriter flow  (additive)</text>
+<rect x="60" y="1820" width="24" height="16" rx="4" ry="4" fill="#FFE0B2" stroke="#E65100" stroke-width="2"/>
+<text x="92" y="1828" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="normal" fill="#212121" text-anchor="start" dominant-baseline="central">Shared sink tables  (multi-source input)</text>
+<rect x="60" y="1846" width="24" height="16" rx="4" ry="4" fill="#EDE7F6" stroke="#6A1B9A" stroke-width="2"/>
+<text x="92" y="1854" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="normal" fill="#212121" text-anchor="start" dominant-baseline="central">JOIN operation  (underwriter + pipe_quote_review)</text>
+
+</svg>

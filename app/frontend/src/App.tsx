@@ -27,10 +27,16 @@ interface Quote {
   num_employees: number | null;
   coverages_requested: string;
   decision_tag: string | null;
+  uw_notes: string | null;
+  uw_surcharge_pct: number | null;
+  uw_discount_pct: number | null;
+  uw_decided_at: string | null;
+  uw_info_request: string | null;
   risk_score: number | null;
   risk_band: string | null;
   review_summary: string | null;
   total_premium: number | null;
+  adjusted_premium: number | null;
   quote_number: string | null;
   pdf_path: string | null;
   pdf_status: string | null;
@@ -38,7 +44,7 @@ interface Quote {
   steps: QuoteSteps;
 }
 
-type Page = "email_intake" | "processing" | "placeholder1" | "analytics";
+type Page = "email_intake" | "processing" | "placeholder1" | "analytics" | "quotes";
 
 interface SampleEmail {
   org_id: string;
@@ -400,12 +406,14 @@ function QuoteRow({ quote, isExpanded, onToggle }: {
               <h3 className={`text-sm font-semibold truncate ${quote.business_name ? "text-white" : "text-white/40 italic"}`}>{quote.business_name || "Processing new request\u2026"}</h3>
               <RiskBadge band={quote.risk_band} />
               <DecisionBadge tag={quote.decision_tag} />
+              {quote.total_premium != null && (
+                <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${quote.adjusted_premium != null ? "bg-white/5 text-white/40 line-through" : "bg-white/10 text-white/70"}`}>{formatCurrency(quote.total_premium)}</span>
+              )}
+              {quote.adjusted_premium != null && (
+                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400">{formatCurrency(quote.adjusted_premium)}</span>
+              )}
             </div>
             <p className="text-[12px] text-white/40 mt-0.5 truncate">{quote.business_name ? <>{quote.sender_name} &middot; {quote.sender_email}</> : quote.file_name}</p>
-          </div>
-          <div className="text-right hidden sm:block min-w-[90px]">
-            <p className="text-sm font-semibold text-white">{formatCurrency(quote.total_premium)}</p>
-            <p className="text-[11px] text-white/40">premium</p>
           </div>
           <div className="hidden md:block"><MiniPipeline steps={quote.steps} decisionTag={quote.decision_tag} /></div>
           <p className="text-[11px] text-white/40 min-w-[60px] text-right">{relativeTime(quote.ingestion_timestamp)}</p>
@@ -417,6 +425,49 @@ function QuoteRow({ quote, isExpanded, onToggle }: {
       </div>
       {isExpanded && (
         <div className="expand-enter border-t border-white/5 px-5 pt-3 pb-4">
+          {/* Underwriter notes */}
+          {(quote.uw_notes || quote.uw_info_request) && (
+            <div className="mb-4 p-4 rounded-lg border border-white/10 bg-[#13141f]">
+              <h4 className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z" />
+                </svg>
+                Underwriter Decision
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {quote.uw_notes && (
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Notes</p>
+                    <p className="text-sm text-white/70 mt-0.5 leading-relaxed">{quote.uw_notes}</p>
+                  </div>
+                )}
+                {quote.uw_info_request && (
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Information Requested</p>
+                    <p className="text-sm text-white/70 mt-0.5 leading-relaxed">{quote.uw_info_request}</p>
+                  </div>
+                )}
+                {quote.uw_surcharge_pct != null && quote.uw_surcharge_pct > 0 && (
+                  <div>
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Surcharge</p>
+                    <p className="text-sm font-medium text-white/80 mt-0.5">{quote.uw_surcharge_pct}%</p>
+                  </div>
+                )}
+                {quote.uw_discount_pct != null && quote.uw_discount_pct > 0 && (
+                  <div>
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Discount</p>
+                    <p className="text-sm font-medium text-white/80 mt-0.5">{quote.uw_discount_pct}%</p>
+                  </div>
+                )}
+                {quote.uw_decided_at && (
+                  <div>
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Decided At</p>
+                    <p className="text-sm text-white/60 mt-0.5">{new Date(quote.uw_decided_at).toLocaleString()}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <p className="text-[11px] text-white/40 mb-1">Click a completed step to inspect its data</p>
           <InteractivePipeline
             steps={quote.steps}
@@ -461,6 +512,15 @@ const NAV_ITEMS: { key: Page; label: string; icon: JSX.Element }[] = [
     ),
   },
   {
+    key: "quotes",
+    label: "Quotes",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+      </svg>
+    ),
+  },
+  {
     key: "email_intake",
     label: "Email Intake",
     icon: (
@@ -471,17 +531,22 @@ const NAV_ITEMS: { key: Page; label: string; icon: JSX.Element }[] = [
   },
 ];
 
-function Sidebar({ activePage, onNavigate }: { activePage: Page; onNavigate: (p: Page) => void }) {
+function Sidebar({ activePage, onNavigate, darkMode, onToggleTheme }: {
+  activePage: Page; onNavigate: (p: Page) => void; darkMode: boolean; onToggleTheme: () => void;
+}) {
   return (
     <aside className="w-56 bg-sidebar shrink-0 flex flex-col border-r border-white/5 fixed top-0 left-0 h-full z-40">
       {/* Logo area */}
       <div className="px-4 h-14 flex items-center gap-3 border-b border-white/5">
         <img
-          src="https://companieslogo.com/img/orig/databricks.D-0e162e58.png?t=1720244494"
+          src={darkMode
+            ? "https://companieslogo.com/img/orig/databricks.D-0e162e58.png?t=1720244494"
+            : "https://images.icon-icons.com/3914/PNG/512/databricks_logo_icon_249070.png"
+          }
           alt="Logo"
           className="h-7 w-7 object-contain"
         />
-        <span className="text-white/90 font-semibold text-sm tracking-tight">BricksHouse</span>
+        <span className="text-white/90 font-semibold text-sm tracking-tight">BricksHouse Insurance</span>
       </div>
 
       {/* Nav items */}
@@ -505,8 +570,23 @@ function Sidebar({ activePage, onNavigate }: { activePage: Page; onNavigate: (p:
         })}
       </nav>
 
-      {/* Status */}
-      <div className="px-4 py-3 border-t border-white/5">
+      {/* Theme toggle + Status */}
+      <div className="px-4 py-3 border-t border-white/5 space-y-3">
+        <button
+          onClick={onToggleTheme}
+          className="w-full flex items-center gap-3 px-2 py-1.5 rounded-md text-sm text-white/50 hover:bg-white/5 hover:text-white/80 transition-colors"
+        >
+          {darkMode ? (
+            <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+            </svg>
+          )}
+          {darkMode ? "Light Mode" : "Dark Mode"}
+        </button>
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           <span className="text-[11px] text-white/40">Live</span>
@@ -1109,7 +1189,7 @@ function EmailIntakePage() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState<{ file_name: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterRisk, setFilterRisk] = useState<string>("all");
   const [loadingEml, setLoadingEml] = useState(false);
 
   // Fetch sample emails on mount
@@ -1136,12 +1216,12 @@ function EmailIntakePage() {
       s.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.business_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.sender_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchCat = filterCategory === "all" || s.risk_category === filterCategory;
-    return matchSearch && matchCat;
+    const matchRisk = filterRisk === "all" || s.risk_level === filterRisk;
+    return matchSearch && matchRisk;
   });
 
-  // Get unique categories
-  const categories = [...new Set(samples.map((s) => s.risk_category))].sort();
+  // Get unique risk levels
+  const riskLevels = [...new Set(samples.map((s) => s.risk_level))].sort();
 
   // Select a sample — lazy-load eml_content
   const handleSelect = async (sample: SampleEmail) => {
@@ -1193,7 +1273,7 @@ function EmailIntakePage() {
           <div className="flex items-center gap-3">
             <span className="text-xs text-white/40">{samples.length} sample emails</span>
             <span className="text-xs text-white/40">|</span>
-            <span className="text-xs text-white/40">{categories.length} risk profiles</span>
+            <span className="text-xs text-white/40">{riskLevels.length} risk levels</span>
           </div>
         }
       />
@@ -1220,29 +1300,29 @@ function EmailIntakePage() {
             />
           </div>
 
-          {/* Category filter pills */}
+          {/* Risk level filter pills */}
           <div className="flex flex-wrap gap-1 px-3 py-2 border-b border-white/5">
             <button
-              onClick={() => setFilterCategory("all")}
+              onClick={() => setFilterRisk("all")}
               className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                filterCategory === "all"
+                filterRisk === "all"
                   ? "bg-white/20 text-white"
                   : "bg-white/5 text-white/50 hover:bg-white/10"
               }`}
             >
               All
             </button>
-            {categories.map((cat) => (
+            {riskLevels.map((level) => (
               <button
-                key={cat}
-                onClick={() => setFilterCategory(cat)}
-                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                  filterCategory === cat
-                    ? RISK_CAT_COLORS[cat] || "bg-white/10 text-white/60"
+                key={level}
+                onClick={() => setFilterRisk(level)}
+                className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors capitalize ${
+                  filterRisk === level
+                    ? RISK_LEVEL_COLORS[level] || "bg-white/10 text-white/60"
                     : "bg-white/5 text-white/40 hover:bg-white/10"
                 }`}
               >
-                {cat.replace("_", " ")}
+                {level} risk
               </button>
             ))}
           </div>
@@ -1400,7 +1480,8 @@ interface AnalyticsSummary {
   uw_approved: number;
   uw_declined: number;
   avg_completion_seconds: number | null;
-  avg_auto_approved_seconds: number | null;
+  avg_automated_seconds: number | null;
+  avg_uw_delay_seconds: number | null;
 }
 
 interface ResponseDelayPoint {
@@ -1631,13 +1712,13 @@ function AnalyticsPage() {
     color: CAT_COLORS[c.risk_category] || CAT_COLORS.unknown,
   }));
 
-  const completionRate = summary && summary.total_quotes > 0
-    ? Math.round((summary.completed_quotes / summary.total_quotes) * 100)
-    : 0;
+  const pct = (n: number) => summary && summary.total_quotes > 0
+    ? Math.round((n / summary.total_quotes) * 100) : 0;
+  const completionRate = pct(summary?.completed_quotes ?? 0);
 
   return (
     <div className="bg-[#13141f] min-h-full">
-      <PageHeader title="Analytics" subtitle="Pipeline metrics and performance dashboards" />
+      <PageHeader title="Analytics for Email to Quote Automation" subtitle="Pipeline metrics and performance dashboards" />
       <div className="p-6 max-w-[1200px] mx-auto space-y-6">
         {loading && (
           <div className="flex items-center justify-center py-20">
@@ -1653,18 +1734,45 @@ function AnalyticsPage() {
         )}
         {!loading && summary && (
           <>
-            {/* Summary counters */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Total Quotes" value={summary.total_quotes} />
-              <StatCard label="Completed" value={summary.completed_quotes} sub={`${completionRate}% completion rate`} color="text-teal-400" />
-              <StatCard label="Auto-Approved" value={summary.auto_approved} color="text-emerald-400" />
-              <StatCard label="Auto-Declined" value={summary.auto_declined} color="text-red-400" />
+            <div className="space-y-3">
+            {/* Quote Stats */}
+            <div className="flex rounded-xl border border-white/10 overflow-hidden">
+              <div className="flex items-center justify-center w-10 min-w-[2.5rem] bg-white/5 border-r border-white/10">
+                <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest whitespace-nowrap" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>Quotes</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 p-4">
+                <StatCard label="Total Quotes" value={summary.total_quotes} />
+                <StatCard label="Completed" value={summary.completed_quotes} sub={`${completionRate}% of total`} color="text-teal-400" />
+                <StatCard label="Pending Review" value={summary.pending_review} sub={`${pct(summary.pending_review)}% of total`} color="text-amber-400" />
+                <StatCard label="Avg Processing Time" value={formatDuration(summary.avg_completion_seconds)} sub="All quotes incl. pending" color="text-white" />
+              </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Pending Review" value={summary.pending_review} color="text-amber-400" />
-              <StatCard label="UW Approved" value={summary.uw_approved} color="text-emerald-400" />
-              <StatCard label="UW Declined" value={summary.uw_declined} color="text-red-400" />
-              <StatCard label="Avg Auto-Approved Time" value={formatDuration(summary.avg_auto_approved_seconds)} sub="Ingested to Completed" color="text-cyan-400" />
+
+            {/* Automated */}
+            <div className="flex rounded-xl border border-white/10 overflow-hidden">
+              <div className="flex items-center justify-center w-10 min-w-[2.5rem] bg-white/5 border-r border-white/10">
+                <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest whitespace-nowrap" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>Automated</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 p-4">
+                <StatCard label="Auto-Approved" value={summary.auto_approved} sub={`${pct(summary.auto_approved)}% of total`} color="text-emerald-400" />
+                <StatCard label="Auto-Declined" value={summary.auto_declined} sub={`${pct(summary.auto_declined)}% of total`} color="text-red-400" />
+                <StatCard label="Automated Processing" value={summary.auto_approved + summary.auto_declined} sub={`${pct(summary.auto_approved + summary.auto_declined)}% of total`} color="text-blue-400" />
+                <StatCard label="Avg Automated Delay" value={formatDuration(summary.avg_automated_seconds)} sub="Auto-approved &amp; declined" color="text-cyan-400" />
+              </div>
+            </div>
+
+            {/* Underwriter */}
+            <div className="flex rounded-xl border border-white/10 overflow-hidden">
+              <div className="flex items-center justify-center w-10 min-w-[2.5rem] bg-white/5 border-r border-white/10">
+                <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest whitespace-nowrap" style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>Underwriter</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 p-4">
+                <StatCard label="UW Approved" value={summary.uw_approved} sub={`${pct(summary.uw_approved)}% of total`} color="text-emerald-400" />
+                <StatCard label="UW Declined" value={summary.uw_declined} sub={`${pct(summary.uw_declined)}% of total`} color="text-red-400" />
+                <StatCard label="Underwriter Processing" value={summary.uw_approved + summary.uw_declined} sub={`${pct(summary.uw_approved + summary.uw_declined)}% of total`} color="text-violet-400" />
+                <StatCard label="Avg Underwriter Delay" value={formatDuration(summary.avg_uw_delay_seconds)} sub="Time in pending review" color="text-violet-400" />
+              </div>
+            </div>
             </div>
 
             {/* Response Delay Line Chart */}
@@ -1672,7 +1780,7 @@ function AnalyticsPage() {
               <div className="bg-[#1e2030] rounded-xl border border-white/5 p-6">
                 <div className="flex items-center gap-2 mb-1">
                   <div className="w-2 h-2 rounded-full bg-teal-400" />
-                  <h3 className="text-sm font-semibold text-white">Auto-Approved Response Delay</h3>
+                  <h3 className="text-sm font-semibold text-white">Automated Processing Delay</h3>
                 </div>
                 <p className="text-xs text-white/30 mb-4 ml-4">Time from email ingestion to quote completion (seconds)</p>
                 <SvgLineChart data={chartData} />
@@ -1733,6 +1841,334 @@ function AnalyticsPage() {
   );
 }
 
+// ─── Page: Quotes ───────────────────────────────────────────────────────────
+
+const QUOTE_STATUS_FILTERS: { value: string; label: string; color: string }[] = [
+  { value: "all", label: "All", color: "bg-white/10 text-white" },
+  { value: "auto-approved", label: "Auto-Approved", color: "bg-emerald-500/20 text-emerald-400" },
+  { value: "pending-review", label: "Pending Review", color: "bg-amber-500/20 text-amber-400" },
+  { value: "auto-declined", label: "Auto-Declined", color: "bg-red-500/20 text-red-400" },
+  { value: "uw-approved", label: "UW Approved", color: "bg-emerald-500/20 text-emerald-400" },
+  { value: "uw-declined", label: "UW Declined", color: "bg-red-500/20 text-red-400" },
+  { value: "uw-info", label: "Info Requested", color: "bg-blue-500/20 text-blue-400" },
+  { value: "in-progress", label: "In Progress", color: "bg-cyan-500/20 text-cyan-400" },
+];
+
+function QuotesPage({ quotes, loading, error }: {
+  quotes: Quote[]; loading: boolean; error: string | null;
+}) {
+  const [filter, setFilter] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showPdf, setShowPdf] = useState(false);
+  const [stepData, setStepData] = useState<Record<string, unknown> | null>(null);
+  const [stepLoading, setStepLoading] = useState(false);
+  const [activeStep, setActiveStep] = useState<string | null>(null);
+
+  const filtered = filter === "all"
+    ? quotes
+    : filter === "in-progress"
+      ? quotes.filter((q) => !q.decision_tag)
+      : quotes.filter((q) => q.decision_tag === filter);
+
+  const selected = quotes.find((q) => q.email_id === selectedId) || null;
+
+  const loadStep = async (emailId: string, stepKey: string) => {
+    if (activeStep === stepKey) { setActiveStep(null); setStepData(null); return; }
+    setActiveStep(stepKey); setStepData(null); setStepLoading(true);
+    try {
+      const r = await fetch(`/api/quotes/${emailId}/step/${stepKey}`);
+      if (r.ok) setStepData(await r.json());
+    } catch { /* silent */ } finally { setStepLoading(false); }
+  };
+
+  const handleSelect = (q: Quote) => {
+    setSelectedId(q.email_id);
+    setShowPdf(false);
+    setStepData(null);
+    setActiveStep(null);
+  };
+
+  const pdfHref = selected ? pdfUrl(selected.pdf_path) : null;
+
+  return (
+    <div className="flex flex-col h-full">
+      <PageHeader
+        title="Quotes"
+        subtitle="All processed quotes and their details"
+        right={<span className="text-sm text-white/40">{filtered.length} of {quotes.length} quote{quotes.length !== 1 ? "s" : ""}</span>}
+      />
+
+      {/* Filter bar */}
+      <div className="px-6 pt-4 pb-2">
+        <div className="flex flex-wrap gap-1.5">
+          {QUOTE_STATUS_FILTERS.map((f) => {
+            const count = f.value === "all"
+              ? quotes.length
+              : f.value === "in-progress"
+                ? quotes.filter((q) => !q.decision_tag).length
+                : quotes.filter((q) => q.decision_tag === f.value).length;
+            const active = filter === f.value;
+            return (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  active
+                    ? f.color
+                    : "bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/50"
+                }`}
+              >
+                {f.label} <span className={active ? "opacity-70" : "opacity-50"}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex flex-1 min-h-0 px-6 pb-6 gap-5">
+        {/* Left: Quote list */}
+        <div className="w-[380px] shrink-0 flex flex-col bg-[#1e2030] border border-white/5 rounded-xl overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex items-center justify-center py-12 text-sm text-white/40">
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full step-spinner mr-2" />
+                Loading...
+              </div>
+            ) : error && quotes.length === 0 ? (
+              <div className="py-12 text-center text-sm text-red-400/60">{error}</div>
+            ) : filtered.length === 0 ? (
+              <div className="py-12 text-center text-sm text-white/40">
+                {quotes.length === 0 ? "No quotes in the pipeline yet" : "No quotes match this filter"}
+              </div>
+            ) : (
+              filtered.map((q) => (
+                <button
+                  key={q.email_id}
+                  onClick={() => handleSelect(q)}
+                  className={`w-full text-left px-4 py-3 border-b border-white/5 transition-colors ${
+                    q.email_id === selectedId
+                      ? "bg-brick-primary/10 border-l-2 border-l-brick-primary"
+                      : "hover:bg-white/5 border-l-2 border-l-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-sm font-medium truncate flex-1 ${q.business_name ? "text-white/90" : "text-white/40 italic"}`}>
+                      {q.business_name || "Processing..."}
+                    </span>
+                    <DecisionBadge tag={q.decision_tag} />
+                    {q.total_premium != null && (
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${q.adjusted_premium != null ? "bg-white/5 text-white/40 line-through" : "bg-white/10 text-white/70"}`}>{formatCurrency(q.total_premium)}</span>
+                    )}
+                    {q.adjusted_premium != null && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/10 text-emerald-400">{formatCurrency(q.adjusted_premium)}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <RiskBadge band={q.risk_band} />
+                    </div>
+                    <span className="text-[11px] text-white/40">{relativeTime(q.ingestion_timestamp)}</span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="px-3 py-2 border-t border-white/5 text-[11px] text-white/40 text-center">
+            {filtered.length} of {quotes.length} quotes
+          </div>
+        </div>
+
+        {/* Right: Detail side panel */}
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          {!selected ? (
+            <div className="flex items-center justify-center h-full bg-[#1e2030] border border-white/5 rounded-xl">
+              <div className="text-center text-white/40">
+                <svg className="w-12 h-12 mx-auto mb-3 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+                <p className="text-sm font-medium text-white/60">Select a quote</p>
+                <p className="text-xs mt-1 text-white/40">Click a quote on the left to see its details</p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-[#1e2030] border border-white/5 rounded-xl overflow-hidden expand-enter">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-white/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-base font-semibold text-white">{selected.business_name || "Processing..."}</h2>
+                    <p className="text-xs text-white/40 mt-0.5">
+                      {selected.sender_name && <>{selected.sender_name} &middot; {selected.sender_email}</>}
+                      {!selected.sender_name && selected.file_name}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RiskBadge band={selected.risk_band} />
+                    <DecisionBadge tag={selected.decision_tag} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Key metrics */}
+              <div className="px-6 py-4 border-b border-white/5">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    ["Quote #", selected.quote_number ?? "--"],
+                    ["Total Premium", selected.adjusted_premium != null
+                      ? `${formatCurrency(selected.adjusted_premium)} (was ${formatCurrency(selected.total_premium)})`
+                      : formatCurrency(selected.total_premium)],
+                    ["Risk Band", selected.risk_band ?? "--"],
+                    ["Risk Score", selected.risk_score != null ? selected.risk_score.toFixed(1) : "--"],
+                    ["Revenue", formatCurrency(selected.annual_revenue)],
+                    ["Employees", selected.num_employees?.toLocaleString() ?? "--"],
+                    ["Category", selected.risk_category?.replace(/_/g, " ") ?? "--"],
+                    ["Coverages", selected.coverages_requested ?? "--"],
+                  ].map(([label, val]) => (
+                    <div key={label as string} className={`${(label as string) === "Coverages" ? "lg:col-span-2" : ""}`}>
+                      <p className="text-[10px] text-white/40 uppercase tracking-wider">{label as string}</p>
+                      <p className="text-sm font-medium text-white/80 mt-0.5">{val as string}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Review summary */}
+              {selected.review_summary && (
+                <div className="px-6 py-4 border-b border-white/5">
+                  <p className="text-[10px] text-white/40 uppercase tracking-wider mb-1">Review Summary</p>
+                  <p className="text-sm text-white/70 leading-relaxed">{selected.review_summary}</p>
+                </div>
+              )}
+
+              {/* Underwriter notes */}
+              {(selected.uw_notes || selected.uw_info_request) && (
+                <div className="px-6 py-4 border-b border-white/5 bg-[#13141f]/50">
+                  <h4 className="text-[10px] text-white/40 uppercase tracking-wider mb-2">Underwriter Decision</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selected.uw_notes && (
+                      <div className="sm:col-span-2">
+                        <p className="text-[10px] text-white/40 uppercase tracking-wider">Notes</p>
+                        <p className="text-sm text-white/70 mt-0.5 leading-relaxed">{selected.uw_notes}</p>
+                      </div>
+                    )}
+                    {selected.uw_info_request && (
+                      <div className="sm:col-span-2">
+                        <p className="text-[10px] text-white/40 uppercase tracking-wider">Information Requested</p>
+                        <p className="text-sm text-white/70 mt-0.5 leading-relaxed">{selected.uw_info_request}</p>
+                      </div>
+                    )}
+                    {selected.uw_surcharge_pct != null && selected.uw_surcharge_pct > 0 && (
+                      <div>
+                        <p className="text-[10px] text-white/40 uppercase tracking-wider">Surcharge</p>
+                        <p className="text-sm font-medium text-white/80 mt-0.5">{selected.uw_surcharge_pct}%</p>
+                      </div>
+                    )}
+                    {selected.uw_discount_pct != null && selected.uw_discount_pct > 0 && (
+                      <div>
+                        <p className="text-[10px] text-white/40 uppercase tracking-wider">Discount</p>
+                        <p className="text-sm font-medium text-white/80 mt-0.5">{selected.uw_discount_pct}%</p>
+                      </div>
+                    )}
+                    {selected.uw_decided_at && (
+                      <div>
+                        <p className="text-[10px] text-white/40 uppercase tracking-wider">Decided At</p>
+                        <p className="text-sm text-white/60 mt-0.5">{new Date(selected.uw_decided_at).toLocaleString()}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Status / timestamps */}
+              <div className="px-6 py-4 border-b border-white/5">
+                <div className="flex flex-wrap gap-4">
+                  <div>
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Status</p>
+                    <p className="text-sm font-medium text-white/80 mt-0.5">{selected.final_status ?? "In Progress"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-white/40 uppercase tracking-wider">Received</p>
+                    <p className="text-sm text-white/60 mt-0.5">{new Date(selected.ingestion_timestamp).toLocaleString()}</p>
+                  </div>
+                  {selected.pdf_status && (
+                    <div>
+                      <p className="text-[10px] text-white/40 uppercase tracking-wider">PDF Status</p>
+                      <p className="text-sm text-white/60 mt-0.5">{selected.pdf_status}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Pipeline progress */}
+              <div className="px-6 py-4 border-b border-white/5">
+                <p className="text-[10px] text-white/40 uppercase tracking-wider mb-2">Pipeline Progress</p>
+                <MiniPipeline steps={selected.steps} decisionTag={selected.decision_tag} />
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {STEP_KEYS.map((key, i) => {
+                    const done = selected.steps[key];
+                    return (
+                      <button
+                        key={key}
+                        disabled={!done}
+                        onClick={() => loadStep(selected.email_id, key)}
+                        className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                          activeStep === key
+                            ? "bg-brick-primary text-white"
+                            : done
+                              ? "bg-white/10 text-white/60 hover:bg-white/15 hover:text-white/80 cursor-pointer"
+                              : "bg-white/5 text-white/20 cursor-default"
+                        }`}
+                      >
+                        {STEP_LABELS[i]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {activeStep && (
+                  <div className="mt-3">
+                    {stepLoading ? (
+                      <div className="flex items-center gap-2 py-4 justify-center text-white/40">
+                        <div className="w-4 h-4 border-2 border-brick-primary border-t-transparent rounded-full step-spinner" />
+                        <span className="text-sm">Loading...</span>
+                      </div>
+                    ) : stepData ? (
+                      <StepDetailPanel
+                        data={stepData}
+                        stepLabel={STEP_LABELS[STEP_KEYS.indexOf(activeStep as keyof QuoteSteps)]}
+                        pdfPath={activeStep === "completed" || activeStep === "pdf_created" ? selected.pdf_path : null}
+                      />
+                    ) : (
+                      <div className="py-4 text-center text-sm text-white/40">No data available</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* View PDF button */}
+              {pdfHref && (
+                <div className="px-6 py-4">
+                  <button
+                    onClick={() => setShowPdf(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-brick-primary hover:bg-brick-primary/90 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    View PDF Quote
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* PDF Modal */}
+      {showPdf && pdfHref && <PdfModal pdfPath={pdfHref} onClose={() => setShowPdf(false)} />}
+    </div>
+  );
+}
+
 // ─── Placeholder page ───────────────────────────────────────────────────────
 
 function PlaceholderPage({ title, description }: { title: string; description: string }) {
@@ -1760,6 +2196,18 @@ export default function App() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("mail2quote-theme");
+    return saved ? saved === "dark" : true;
+  });
+
+  const toggleTheme = useCallback(() => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      localStorage.setItem("mail2quote-theme", next ? "dark" : "light");
+      return next;
+    });
+  }, []);
 
   const fetchQuotes = useCallback(async () => {
     try {
@@ -1780,10 +2228,11 @@ export default function App() {
   }, [fetchQuotes]);
 
   return (
-    <div className="flex h-screen bg-[#13141f] overflow-hidden">
-      <Sidebar activePage={page} onNavigate={setPage} />
+    <div className={`flex h-screen bg-[#13141f] overflow-hidden ${darkMode ? "" : "light-mode"}`}>
+      <Sidebar activePage={page} onNavigate={setPage} darkMode={darkMode} onToggleTheme={toggleTheme} />
       <main className="flex-1 min-w-0 ml-56 h-full overflow-y-auto flex flex-col">
         {page === "email_intake" && <EmailIntakePage />}
+        {page === "quotes" && <QuotesPage quotes={quotes} loading={loading} error={error} />}
         {page === "processing" && <QuoteProcessingPage quotes={quotes} loading={loading} error={error} />}
         {page === "placeholder1" && <UnderwriterReviewPage />}
         {page === "analytics" && <AnalyticsPage />}

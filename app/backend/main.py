@@ -201,8 +201,8 @@ _has_response_email_table: bool | None = None
 def _check_response_email_table() -> bool:
     """Check if lb_pipe_response_email table exists in Lakebase."""
     global _has_response_email_table
-    if _has_response_email_table is not None:
-        return _has_response_email_table
+    if _has_response_email_table:
+        return True
     try:
         _execute_query("SELECT 1 FROM lb_pipe_response_email LIMIT 0")
         _has_response_email_table = True
@@ -226,11 +226,17 @@ SELECT
     parsed.coverages_requested,
 
     COALESCE(uw.decision, review.decision_tag) AS decision_tag,
+    uw.notes AS uw_notes,
+    uw.surcharge_pct AS uw_surcharge_pct,
+    uw.discount_pct AS uw_discount_pct,
+    uw.decided_at AS uw_decided_at,
+    uw.info_request AS uw_info_request,
     review.risk_score,
     review.risk_band,
     review.review_summary,
 
     creation.total_premium,
+    creation.subtotal_premium,
     creation.quote_number,
 
     pdf.pdf_path,
@@ -287,6 +293,11 @@ def _quotes_by_id() -> str:
     return _build_quotes_query() + " WHERE recv.email_id = %s"
 
 
+def _has_uw_adjustment(surcharge_pct, discount_pct) -> bool:
+    """Check if the underwriter applied any adjustment."""
+    return float(surcharge_pct or 0) != 0 or float(discount_pct or 0) != 0
+
+
 def _format_quote(row: dict) -> dict:
     """Transform a raw DB row into the API response shape."""
     return {
@@ -305,10 +316,16 @@ def _format_quote(row: dict) -> dict:
         "num_employees": row.get("num_employees"),
         "coverages_requested": row.get("coverages_requested"),
         "decision_tag": row.get("decision_tag"),
+        "uw_notes": row.get("uw_notes"),
+        "uw_surcharge_pct": row.get("uw_surcharge_pct"),
+        "uw_discount_pct": row.get("uw_discount_pct"),
+        "uw_decided_at": row.get("uw_decided_at"),
+        "uw_info_request": row.get("uw_info_request"),
         "risk_score": row.get("risk_score"),
         "risk_band": row.get("risk_band"),
         "review_summary": row.get("review_summary"),
-        "total_premium": row.get("total_premium"),
+        "total_premium": row.get("subtotal_premium") if _has_uw_adjustment(row.get("uw_surcharge_pct"), row.get("uw_discount_pct")) else row.get("total_premium"),
+        "adjusted_premium": row.get("total_premium") if _has_uw_adjustment(row.get("uw_surcharge_pct"), row.get("uw_discount_pct")) else None,
         "quote_number": row.get("quote_number"),
         "pdf_path": row.get("pdf_path"),
         "pdf_status": row.get("pdf_status"),
@@ -406,7 +423,11 @@ app.add_middleware(
 @app.get("/api/quotes")
 def get_quotes():
     """Return all quotes with pipeline progress."""
-    rows = _execute_query(_quotes_all())
+    try:
+        rows = _execute_query(_quotes_all())
+    except Exception as exc:
+        logger.error("Quotes query failed: %s", exc)
+        return JSONResponse(content={"quotes": [], "error": str(exc)[:300]})
     quotes = [_make_serializable(_format_quote(r)) for r in rows]
     return JSONResponse(content={"quotes": quotes})
 
@@ -975,12 +996,13 @@ SELECT
     COUNT(CASE WHEN review.decision_tag = 'pending-review' THEN 1 END) AS pending_review,
     COUNT(CASE WHEN uw.decision = 'uw-approved' THEN 1 END) AS uw_approved,
     COUNT(CASE WHEN uw.decision = 'uw-declined' THEN 1 END) AS uw_declined,
-    AVG(CASE WHEN completed.email_id IS NOT NULL
+    AVG(EXTRACT(EPOCH FROM (COALESCE(completed.completed_timestamp, NOW()) - recv.ingestion_timestamp))) AS avg_completion_seconds,
+    AVG(CASE WHEN review.decision_tag IN ('auto-approved', 'auto-declined') AND completed.email_id IS NOT NULL
         THEN EXTRACT(EPOCH FROM (completed.completed_timestamp - recv.ingestion_timestamp))
-    END) AS avg_completion_seconds,
-    AVG(CASE WHEN review.decision_tag = 'auto-approved' AND completed.email_id IS NOT NULL
-        THEN EXTRACT(EPOCH FROM (completed.completed_timestamp - recv.ingestion_timestamp))
-    END) AS avg_auto_approved_seconds
+    END) AS avg_automated_seconds,
+    AVG(CASE WHEN review.decision_tag = 'pending-review'
+        THEN EXTRACT(EPOCH FROM (COALESCE(uw.decided_at, NOW()) - review.review_timestamp))
+    END) AS avg_uw_delay_seconds
 FROM lb_pipe_email_received recv
 LEFT JOIN lb_pipe_quote_review review ON review.email_id = recv.email_id
 LEFT JOIN lb_pipe_completed completed ON completed.email_id = recv.email_id
@@ -998,7 +1020,7 @@ FROM lb_pipe_email_received recv
 JOIN lb_pipe_quote_review review ON review.email_id = recv.email_id
 JOIN lb_pipe_email_parsed parsed ON parsed.email_id = recv.email_id
 JOIN lb_pipe_completed completed ON completed.email_id = recv.email_id
-WHERE review.decision_tag = 'auto-approved'
+WHERE review.decision_tag IN ('auto-approved', 'auto-declined')
 ORDER BY recv.ingestion_timestamp ASC
 """
 
@@ -1073,6 +1095,157 @@ def get_pdf(quote_number: str):
     except Exception as exc:
         logger.warning("PDF download error for %s: %s", quote_number, exc)
         raise HTTPException(status_code=404, detail="PDF not found") from exc
+
+
+# ---------------------------------------------------------------------------
+# PDF regeneration (standalone – no pipeline rerun needed)
+# ---------------------------------------------------------------------------
+import sys as _sys
+from pathlib import Path as _Path
+# Ensure backend/ is on sys.path so pdf_generator can be imported
+_backend_dir = str(_Path(__file__).resolve().parent)
+if _backend_dir not in _sys.path:
+    _sys.path.insert(0, _backend_dir)
+from pdf_generator import generate_quote_pdf as _gen_pdf
+
+
+@app.post("/api/pdf/{quote_number}/regenerate")
+def regenerate_pdf(quote_number: str):
+    """Re-generate a PDF from existing quote data in Lakebase, without
+    re-running the pipeline.  Writes the new PDF back to the volume."""
+    import json as _json
+    import tempfile
+
+    if not quote_number.startswith("QT-") or ".." in quote_number:
+        raise HTTPException(status_code=400, detail="Invalid quote number")
+
+    # Fetch full quote data from pipe_quote_creation + executive summary from pipe_pdf_created
+    with pool.connection() as conn:
+        qc = conn.execute(
+            f"""
+            SELECT quote_number, business_name, risk_category, decision_tag,
+                   review_summary, risk_score, risk_band, predicted_loss_ratio,
+                   pricing_action, risk_mult, experience_mod,
+                   gl_premium, liquor_premium,
+                   property_building_premium, property_contents_premium,
+                   bi_premium, equipment_premium,
+                   wc_premium, auto_premium, cyber_premium, umbrella_premium,
+                   terrorism_premium, policy_fees, subtotal_premium,
+                   surcharge_pct, discount_pct, underwriter_notes,
+                   total_premium,
+                   gl_limit_requested, property_tiv, bi_limit,
+                   auto_fleet_size, cyber_limit_requested, umbrella_limit_requested,
+                   annual_revenue, annual_payroll, num_employees, num_locations,
+                   num_claims_5yr, total_claims_amount,
+                   has_safety_procedures, has_employee_training,
+                   effective_date, expiration_date
+            FROM {DB_SCHEMA}.lb_pipe_quote_creation
+            WHERE quote_number = %s
+            LIMIT 1
+            """,
+            (quote_number,),
+        ).fetchone()
+
+        summary_row = conn.execute(
+            f"""
+            SELECT pdf_executive_summary
+            FROM {DB_SCHEMA}.lb_pipe_pdf_created
+            WHERE quote_number = %s AND pdf_executive_summary IS NOT NULL
+            LIMIT 1
+            """,
+            (quote_number,),
+        ).fetchone()
+
+    if not qc:
+        raise HTTPException(status_code=404, detail="Quote not found in pipe_quote_creation")
+
+    # Build dict from row (column names match the query order)
+    col_names = [
+        "quote_number", "business_name", "risk_category", "decision_tag",
+        "review_summary", "risk_score", "risk_band", "predicted_loss_ratio",
+        "pricing_action", "risk_mult", "experience_mod",
+        "gl_premium", "liquor_premium",
+        "property_building_premium", "property_contents_premium",
+        "bi_premium", "equipment_premium",
+        "wc_premium", "auto_premium", "cyber_premium", "umbrella_premium",
+        "terrorism_premium", "policy_fees", "subtotal_premium",
+        "surcharge_pct", "discount_pct", "underwriter_notes",
+        "total_premium",
+        "gl_limit_requested", "property_tiv", "bi_limit",
+        "auto_fleet_size", "cyber_limit_requested", "umbrella_limit_requested",
+        "annual_revenue", "annual_payroll", "num_employees", "num_locations",
+        "num_claims_5yr", "total_claims_amount",
+        "has_safety_procedures", "has_employee_training",
+        "effective_date", "expiration_date",
+    ]
+    quote_data = {col_names[i]: v for i, v in enumerate(qc)}
+    # Serialize dates for JSON
+    for k, v in quote_data.items():
+        if hasattr(v, "isoformat"):
+            quote_data[k] = v.isoformat()
+        elif hasattr(v, "__float__"):
+            quote_data[k] = float(v)
+
+    summary = summary_row[0] if summary_row else None
+
+    vol_path = f"/Volumes/dvin100_email_to_quote/email_to_quote/quote_documents/{quote_number}.pdf"
+
+    # Generate PDF locally, then upload to volume
+    local_path = os.path.join(tempfile.gettempdir(), f"{quote_number}.pdf")
+    pdf_path, status, error = _gen_pdf(quote_data, local_path, summary)
+
+    if error:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {error}")
+
+    # Upload to Databricks volume
+    try:
+        w = WorkspaceClient()
+        with open(local_path, "rb") as f:
+            w.files.upload(vol_path, f, overwrite=True)
+    except Exception as exc:
+        logger.warning("PDF upload error for %s: %s", quote_number, exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"PDF upload failed: {type(exc).__name__}: {str(exc)[:300]}",
+        ) from exc
+    finally:
+        if os.path.exists(local_path):
+            os.remove(local_path)
+
+    return JSONResponse(content={"quote_number": quote_number, "status": status, "pdf_path": vol_path})
+
+
+@app.post("/api/pdf/regenerate-all")
+def regenerate_all_pdfs():
+    """Re-generate PDFs for all approved quotes."""
+    with pool.connection() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT DISTINCT quote_number
+            FROM {DB_SCHEMA}.lb_pipe_pdf_created
+            WHERE quote_number IS NOT NULL
+              AND pdf_status = 'generated'
+              AND decision_tag IN ('auto-approved', 'uw-approved')
+            """,
+        ).fetchall()
+
+    results = []
+    for (qn,) in rows:
+        try:
+            resp = regenerate_pdf(qn)
+            import json as _json2
+            body = _json2.loads(resp.body.decode())
+            results.append(body)
+        except Exception as e:
+            results.append({"quote_number": qn, "status": "error", "error": str(e)[:200]})
+
+    succeeded = sum(1 for r in results if r.get("status") == "generated")
+    return JSONResponse(content={
+        "total": len(results),
+        "succeeded": succeeded,
+        "failed": len(results) - succeeded,
+        "results": results,
+    })
 
 
 # ---------------------------------------------------------------------------

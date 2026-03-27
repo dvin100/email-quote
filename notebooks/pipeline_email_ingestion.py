@@ -899,6 +899,16 @@ def pipe_quote_creation():
         2,
     ))
 
+    # ── Underwriter fields (NULL for auto-approved; populated by append flow) ──
+    q = (
+        q
+        .withColumn("surcharge_pct", F.lit(None).cast("double"))
+        .withColumn("discount_pct", F.lit(None).cast("double"))
+        .withColumn("underwriter_notes", F.lit(None).cast("string"))
+        .withColumn("decided_at", F.lit(None).cast("timestamp"))
+        .withColumn("decided_by", F.lit(None).cast("string"))
+    )
+
     # ── Total premium ────────────────────────────────────────────────────
     q = q.withColumn("total_premium", F.col("subtotal_premium"))
 
@@ -928,7 +938,11 @@ def pipe_quote_creation():
         "bi_premium", "equipment_premium",
         "wc_premium", "auto_premium", "cyber_premium", "umbrella_premium",
         "terrorism_premium", "policy_fees",
-        "subtotal_premium", "total_premium",
+        "subtotal_premium",
+        # Underwriter adjustments
+        "surcharge_pct", "discount_pct", "underwriter_notes",
+        "decided_at", "decided_by",
+        "total_premium",
         # Coverage details
         "gl_limit_requested", "property_tiv", "bi_limit",
         "auto_fleet_size", "cyber_limit_requested", "umbrella_limit_requested",
@@ -966,376 +980,14 @@ _pdf_result_schema = StructType([
 
 
 @F.udf(returnType=_pdf_result_schema)
-def generate_quote_pdf(quote_json, output_path, executive_summary):
-    """Generate a professional insurance quote PDF and write it to the volume."""
-    import json
-    import os
-    from datetime import datetime
-
-    try:
-        data = json.loads(quote_json)
-    except Exception as e:
-        return (None, "error", f"JSON parse: {str(e)[:200]}")
-
-    # ── Try fpdf2 for a rich PDF; fall back to plain-text ────────────────
-    try:
-        from fpdf import FPDF
-    except ImportError:
-        # ---------- text fallback ----------
-        try:
-            txt_path = (output_path or "/tmp/quote.txt").replace(".pdf", ".txt")
-            os.makedirs(os.path.dirname(txt_path), exist_ok=True)
-            with open(txt_path, "w") as f:
-                f.write(f"{'=' * 60}\n")
-                f.write("COMMERCIAL INSURANCE PROPOSAL\n")
-                f.write(f"{'=' * 60}\n\n")
-                f.write(f"Quote #: {data.get('quote_number', 'N/A')}\n")
-                f.write(f"Business: {data.get('business_name', 'N/A')}\n")
-                f.write(f"Industry: {data.get('risk_category', 'N/A')}\n")
-                f.write(f"Risk: {data.get('risk_band', 'N/A')} "
-                        f"({data.get('risk_score', 0):.0f}/100)\n")
-                f.write(f"Total Premium: ${data.get('total_premium', 0):,.0f}\n")
-                f.write(f"Policy: {data.get('effective_date', 'TBD')} to "
-                        f"{data.get('expiration_date', 'TBD')}\n\n")
-                if executive_summary:
-                    f.write(f"Summary:\n{executive_summary}\n\n")
-                f.write("Coverage Breakdown:\n")
-                for k in [
-                    "gl_premium", "liquor_premium",
-                    "property_building_premium", "property_contents_premium",
-                    "bi_premium", "equipment_premium", "wc_premium",
-                    "auto_premium", "cyber_premium", "umbrella_premium",
-                    "terrorism_premium", "policy_fees",
-                ]:
-                    v = data.get(k, 0) or 0
-                    if v > 0:
-                        label = k.replace("_premium", "").replace("_", " ").title()
-                        f.write(f"  {label:40s} ${v:>12,.0f}\n")
-                f.write(f"  {'Subtotal':40s} "
-                        f"${data.get('subtotal_premium', 0):>12,.0f}\n")
-                f.write(f"  {'TOTAL ANNUAL PREMIUM':40s} "
-                        f"${data.get('total_premium', 0):>12,.0f}\n")
-            return (txt_path, "generated_txt", None)
-        except Exception as e2:
-            return (None, "error", f"Text fallback: {str(e2)[:200]}")
-
-    # ── Rich PDF via fpdf2 ───────────────────────────────────────────────
-    try:
-        def _safe(text):
-            """Sanitize text for Helvetica (Latin-1 only): replace or drop unsupported chars."""
-            if not text:
-                return ""
-            s = str(text)
-            # Common Unicode replacements
-            for src, dst in [
-                ("\u2014", "--"), ("\u2013", "-"), ("\u2018", "'"), ("\u2019", "'"),
-                ("\u201c", '"'), ("\u201d", '"'), ("\u2022", "-"), ("\u2026", "..."),
-                ("\u00a0", " "), ("\u200b", ""),
-            ]:
-                s = s.replace(src, dst)
-            # Drop anything still outside Latin-1
-            return s.encode("latin-1", errors="replace").decode("latin-1")
-
-        class QuotePDF(FPDF):
-            def cell(self, *args, **kwargs):
-                # Sanitize any positional string args and text/txt kwargs
-                args = list(args)
-                for idx in range(len(args)):
-                    if isinstance(args[idx], str):
-                        args[idx] = _safe(args[idx])
-                for k in ("text", "txt"):
-                    if k in kwargs and isinstance(kwargs[k], str):
-                        kwargs[k] = _safe(kwargs[k])
-                return super().cell(*args, **kwargs)
-
-            def multi_cell(self, *args, **kwargs):
-                args = list(args)
-                for idx in range(len(args)):
-                    if isinstance(args[idx], str):
-                        args[idx] = _safe(args[idx])
-                for k in ("text", "txt"):
-                    if k in kwargs and isinstance(kwargs[k], str):
-                        kwargs[k] = _safe(kwargs[k])
-                return super().multi_cell(*args, **kwargs)
-
-            def header(self):
-                self.set_font("Helvetica", "B", 11)
-                self.cell(0, 7, "DATABRICKS INSURANCE SERVICES", new_x="LMARGIN", new_y="NEXT")
-                self.set_font("Helvetica", "", 7)
-                self.cell(0, 4, "Powered by AI/ML Risk Assessment", new_x="LMARGIN", new_y="NEXT")
-                self.set_draw_color(0, 100, 180)
-                self.set_line_width(0.5)
-                self.line(10, self.get_y() + 2, 200, self.get_y() + 2)
-                self.ln(6)
-
-            def footer(self):
-                self.set_y(-18)
-                self.set_font("Helvetica", "I", 6)
-                self.set_text_color(128)
-                self.cell(0, 3,
-                    "This proposal is for illustrative purposes. "
-                    "All coverage subject to policy terms and conditions.",
-                    new_x="LMARGIN", new_y="NEXT", align="C")
-                self.cell(0, 3,
-                    f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')} | "
-                    f"Page {self.page_no()}/{{nb}}",
-                    align="C")
-                self.set_text_color(0)
-
-        pdf = QuotePDF()
-        pdf.alias_nb_pages()
-        pdf.set_auto_page_break(auto=True, margin=25)
-        pdf.add_page()
-
-        # ---- Title ----
-        pdf.set_font("Helvetica", "B", 20)
-        pdf.set_text_color(0, 60, 120)
-        pdf.cell(0, 12, "Commercial Insurance Proposal",
-                 new_x="LMARGIN", new_y="NEXT", align="C")
-        pdf.set_text_color(0)
-        pdf.ln(3)
-
-        # ---- Quote info box ----
-        pdf.set_fill_color(240, 245, 250)
-        pdf.set_font("Helvetica", "B", 10)
-        y0 = pdf.get_y()
-        pdf.rect(10, y0, 190, 18, "F")
-        pdf.set_xy(12, y0 + 2)
-        pdf.cell(90, 7, f"Quote #: {data.get('quote_number', 'N/A')}")
-        pdf.cell(90, 7, f"Date: {datetime.now().strftime('%B %d, %Y')}",
-                 new_x="LMARGIN", new_y="NEXT")
-        pdf.set_x(12)
-        pdf.cell(90, 7,
-            f"Policy Period: {data.get('effective_date', 'TBD')} to "
-            f"{data.get('expiration_date', 'TBD')}")
-        pdf.cell(90, 7,
-            f"Status: {data.get('decision_tag', 'N/A').replace('-', ' ').title()}",
-            new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(6)
-
-        # ---- Named Insured ----
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.set_text_color(0, 60, 120)
-        pdf.cell(0, 9, "Named Insured", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(0)
-        pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 6, data.get("business_name", "N/A"),
-                 new_x="LMARGIN", new_y="NEXT")
-        industry = data.get("risk_category", "").replace("_", " ").title()
-        pdf.cell(0, 6, f"Industry: {industry}", new_x="LMARGIN", new_y="NEXT")
-        rev = data.get("annual_revenue", 0) or 0
-        pay = data.get("annual_payroll", 0) or 0
-        pdf.cell(0, 6,
-            f"Annual Revenue: ${rev:,.0f}  |  Annual Payroll: ${pay:,.0f}",
-            new_x="LMARGIN", new_y="NEXT")
-        emp = data.get("num_employees", 0) or 0
-        loc = data.get("num_locations", 0) or 0
-        pdf.cell(0, 6,
-            f"Employees: {emp}  |  Locations: {loc}",
-            new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-
-        # ---- Executive Summary ----
-        if executive_summary:
-            pdf.set_font("Helvetica", "B", 13)
-            pdf.set_text_color(0, 60, 120)
-            pdf.cell(0, 9, "Executive Summary", new_x="LMARGIN", new_y="NEXT")
-            pdf.set_text_color(0)
-            pdf.set_font("Helvetica", "", 10)
-            pdf.multi_cell(0, 5, str(executive_summary).strip())
-            pdf.ln(5)
-
-        # ---- Coverage Schedule ----
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.set_text_color(0, 60, 120)
-        pdf.cell(0, 9, "Coverage Schedule", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(0)
-
-        col_w = [65, 45, 40, 40]
-        # Table header
-        pdf.set_font("Helvetica", "B", 8)
-        pdf.set_fill_color(0, 70, 140)
-        pdf.set_text_color(255)
-        for i, h in enumerate(
-            ["Coverage Line", "Basis / Limit", "Rate", "Annual Premium"]
-        ):
-            pdf.cell(col_w[i], 7, h, border=1, fill=True, align="C")
-        pdf.ln()
-        pdf.set_text_color(0)
-
-        # Table rows
-        pdf.set_font("Helvetica", "", 8)
-        rows = []
-        gl = data.get("gl_limit_requested", 0) or 0
-        tiv = data.get("property_tiv", 0) or 0
-        if data.get("gl_premium", 0):
-            rows.append(("General Liability - Occurrence",
-                         f"${gl:,.0f} / ${gl * 2:,.0f}",
-                         "$1.50 / $1K rev",
-                         f"${data['gl_premium']:,.0f}"))
-        if data.get("liquor_premium", 0):
-            rows.append(("Liquor Liability",
-                         f"${gl:,.0f} sublimit", "Flat",
-                         f"${data['liquor_premium']:,.0f}"))
-        if data.get("property_building_premium", 0):
-            rows.append(("Commercial Property - Building",
-                         f"${tiv * 0.7:,.0f} repl. cost",
-                         "$0.65 / $100",
-                         f"${data['property_building_premium']:,.0f}"))
-        if data.get("property_contents_premium", 0):
-            rows.append(("Commercial Property - Contents",
-                         f"${tiv * 0.3:,.0f} repl. cost",
-                         "$0.80 / $100",
-                         f"${data['property_contents_premium']:,.0f}"))
-        if data.get("bi_premium", 0):
-            rows.append(("Business Income",
-                         f"${data.get('bi_limit', 0):,.0f} annual",
-                         "$0.25 / $100",
-                         f"${data['bi_premium']:,.0f}"))
-        if data.get("equipment_premium", 0):
-            rows.append(("Equipment Breakdown",
-                         f"${loc * 100_000:,.0f} sublimit", "Flat",
-                         f"${data['equipment_premium']:,.0f}"))
-        if data.get("wc_premium", 0):
-            rows.append(("Workers Compensation",
-                         "Statutory Limits",
-                         "$1.50 / $100 payroll",
-                         f"${data['wc_premium']:,.0f}"))
-        if data.get("auto_premium", 0):
-            fleet = data.get("auto_fleet_size", 0) or 0
-            rows.append(("Commercial Auto",
-                         f"{fleet} vehicles",
-                         "$2,000 / vehicle",
-                         f"${data['auto_premium']:,.0f}"))
-        if data.get("cyber_premium", 0):
-            rows.append(("Cyber Liability",
-                         f"${data.get('cyber_limit_requested', 0):,.0f} limit",
-                         "$2.50 / $1K",
-                         f"${data['cyber_premium']:,.0f}"))
-        if data.get("umbrella_premium", 0):
-            rows.append(("Umbrella / Excess Liability",
-                         f"${data.get('umbrella_limit_requested', 0):,.0f} limit",
-                         "$1,500 / $1M",
-                         f"${data['umbrella_premium']:,.0f}"))
-        if data.get("terrorism_premium", 0):
-            rows.append(("Terrorism (TRIA)",
-                         "All applicable coverages", "~1%",
-                         f"${data['terrorism_premium']:,.0f}"))
-        rows.append(("Policy & Inspection Fees",
-                     "--", "Flat",
-                     f"${data.get('policy_fees', 150):,.0f}"))
-
-        alt = False
-        for row in rows:
-            pdf.set_fill_color(245, 248, 252) if alt else pdf.set_fill_color(255, 255, 255)
-            for i, val in enumerate(row):
-                pdf.cell(col_w[i], 6, val, border=1, fill=True,
-                         align="R" if i == 3 else "L")
-            pdf.ln()
-            alt = not alt
-
-        # Subtotal
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_fill_color(230, 236, 245)
-        pdf.cell(sum(col_w[:3]), 7, "Technical Premium Subtotal",
-                 border=1, fill=True, align="R")
-        pdf.cell(col_w[3], 7,
-                 f"${data.get('subtotal_premium', 0):,.0f}",
-                 border=1, fill=True, align="R")
-        pdf.ln()
-
-
-
-        # Total
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_fill_color(0, 70, 140)
-        pdf.set_text_color(255)
-        pdf.cell(sum(col_w[:3]), 9, "TOTAL ANNUAL PREMIUM",
-                 border=1, fill=True, align="R")
-        pdf.cell(col_w[3], 9,
-                 f"${data.get('total_premium', 0):,.0f}",
-                 border=1, fill=True, align="R")
-        pdf.ln()
-        pdf.set_text_color(0)
-        pdf.ln(6)
-
-        # ---- Payment Options ----
-        total = data.get("total_premium", 0) or 1
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.set_text_color(0, 60, 120)
-        pdf.cell(0, 9, "Payment Options", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(0)
-        pdf.set_font("Helvetica", "", 10)
-        down = total * 0.25
-        monthly = (total - down) / 9
-        pdf.cell(0, 6, f"  1. Pay in Full: ${total * 0.95:,.0f} (5% discount)",
-                 new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 6, f"  2. Quarterly: 4 installments of ${total / 4:,.0f}",
-                 new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 6,
-            f"  3. Monthly: ${down:,.0f} down + 9 installments of ${monthly:,.0f}",
-            new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-
-        # ---- Risk Assessment ----
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.set_text_color(0, 60, 120)
-        pdf.cell(0, 9, "Risk Assessment Summary", new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(0)
-        pdf.set_font("Helvetica", "", 10)
-        rs = data.get("risk_score", 0) or 0
-        rb = data.get("risk_band", "N/A")
-        lr = data.get("predicted_loss_ratio", 0) or 0
-        pa = (data.get("pricing_action", "N/A") or "N/A").replace("_", " ").title()
-        nc = data.get("num_claims_5yr", 0) or 0
-        ca = data.get("total_claims_amount", 0) or 0
-        sf = "Yes" if data.get("has_safety_procedures") else "No"
-        tr = "Yes" if data.get("has_employee_training") else "No"
-        for line in [
-            f"ML Risk Score: {rs:.1f} / 100 ({rb})",
-            f"Predicted Loss Ratio: {lr:.2f}",
-            f"Pricing Recommendation: {pa}",
-            f"5-Year Loss History: {nc} claim(s) totaling ${ca:,.0f}",
-            f"Safety Procedures: {sf}  |  Employee Training: {tr}",
-        ]:
-            pdf.cell(0, 6, line, new_x="LMARGIN", new_y="NEXT")
-
-        review = data.get("review_summary", "")
-        if review:
-            pdf.ln(3)
-            pdf.set_font("Helvetica", "I", 9)
-            pdf.multi_cell(0, 4.5, str(review).strip())
-        pdf.ln(5)
-
-        # ---- Key Conditions & Exclusions ----
-        pdf.set_font("Helvetica", "B", 13)
-        pdf.set_text_color(0, 60, 120)
-        pdf.cell(0, 9, "Key Conditions & Exclusions",
-                 new_x="LMARGIN", new_y="NEXT")
-        pdf.set_text_color(0)
-        pdf.set_font("Helvetica", "", 8)
-        for c in [
-            "All coverage subject to policy terms, conditions, and exclusions.",
-            "Quote valid for 30 days from date of issue.",
-            f"Premium reflects AI/ML risk assessment as of "
-            f"{datetime.now().strftime('%B %Y')}.",
-            "Material changes in operations, exposures, or loss history "
-            "may affect pricing.",
-            "Standard exclusions: war, nuclear, intentional acts, pollution "
-            "(unless endorsed).",
-            "Deductibles apply per occurrence unless otherwise stated.",
-            "Additional insured and waiver of subrogation available "
-            "by endorsement.",
-        ]:
-            pdf.cell(0, 4.5, f"  - {c}", new_x="LMARGIN", new_y="NEXT")
-
-        # Write PDF to volume
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        pdf.output(output_path)
-        return (output_path, "generated", None)
-
-    except Exception as e:
-        return (None, "error", str(e)[:500])
+def _generate_quote_pdf_udf(quote_json, output_path, executive_summary):
+    """Spark UDF wrapper – delegates to the standalone pdf_generator module."""
+    import sys
+    _vol = "/Volumes/dvin100_email_to_quote/email_to_quote/incoming_email"
+    if _vol not in sys.path:
+        sys.path.insert(0, _vol)
+    from pdf_generator import generate_quote_pdf
+    return generate_quote_pdf(quote_json, output_path, executive_summary)
 
 # COMMAND ----------
 
@@ -1361,7 +1013,9 @@ def pipe_pdf_created():
             "property_building_premium", "property_contents_premium",
             "bi_premium", "equipment_premium",
             "wc_premium", "auto_premium", "cyber_premium", "umbrella_premium",
-            "terrorism_premium", "policy_fees", "subtotal_premium", "total_premium",
+            "terrorism_premium", "policy_fees", "subtotal_premium",
+            "surcharge_pct", "discount_pct", "underwriter_notes",
+            "total_premium",
             "gl_limit_requested", "property_tiv", "bi_limit",
             "auto_fleet_size", "cyber_limit_requested", "umbrella_limit_requested",
             "annual_revenue", "annual_payroll", "num_employees", "num_locations",
@@ -1410,7 +1064,7 @@ def pipe_pdf_created():
         "pdf_result",
         F.when(
             F.col("decision_tag").isin("auto-approved", "uw-approved"),
-            generate_quote_pdf(
+            _generate_quote_pdf_udf(
                 F.col("quote_data_json"),
                 F.col("pdf_output_path"),
                 F.col("pdf_executive_summary"),
@@ -1421,6 +1075,7 @@ def pipe_pdf_created():
     return result.select(
         "email_id", "quote_number", "business_name", "risk_category",
         "decision_tag", "review_summary", "pdf_executive_summary",
+        "quote_data_json",  # kept for standalone PDF regeneration
         F.coalesce(F.col("pdf_result.pdf_path"), F.lit(None)).alias("pdf_path"),
         F.when(
             F.col("decision_tag").isin("auto-approved", "uw-approved"),

@@ -1,0 +1,33 @@
+{
+  "name": "Underwriter Ingestion Pipeline",
+  "catalog": "dvin100_email_to_quote",
+  "target": "email_to_quote",
+  "continuous": true,
+  "serverless": true,
+  "channel": "CURRENT",
+  "libraries": [
+    {
+      "notebook": {
+        "path": "/Users/david.vincent@databricks.com/email_to_quote/pipelines/pipeline_email_ingestion"
+      }
+    },
+    {
+      "notebook": {
+        "path": "/Users/david.vincent@databricks.com/mail2quote/ingest_underwriter"
+      }
+    }
+  ],
+  "configuration": {
+    "pipelines.trigger.interval": "1 seconds",
+    "pipelines.enableTrackHistory": "true"
+  },
+  "clusters": [
+    {
+      "label": "default",
+      "libraries": [
+        {"pypi": {"package": "fpdf2"}}
+      ]
+    }
+  ],
+  "edition": "ADVANCED"
+}
