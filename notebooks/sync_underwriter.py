@@ -19,8 +19,8 @@ LAKEBASE_HOST = os.environ.get("LAKEBASE_HOST", "ep-icy-pond-d8d33jwn.database.u
 LAKEBASE_DB = os.environ.get("LAKEBASE_DB", "databricks_postgres")
 LAKEBASE_SCHEMA = "email_to_quote"
 
-dbutils.widgets.text("lb_user", "6c61f198-3fcd-4021-8be2-cca728d89ac1")
-dbutils.widgets.text("lb_pass", "Mail2Quote2026!")
+dbutils.widgets.text("lb_user", "")
+dbutils.widgets.text("lb_pass", "")
 dbutils.widgets.text("poll_interval", "5")
 LAKEBASE_USER = dbutils.widgets.get("lb_user")
 LAKEBASE_PASSWORD = dbutils.widgets.get("lb_pass")
