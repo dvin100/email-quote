@@ -24,14 +24,11 @@ random.seed(42)
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-PROFILE = "EMAIL_QUOTE"
-UC_CATALOG = "dvin100_email_to_quote"
-UC_SCHEMA = "email_to_quote"
-WAREHOUSE_ID = "6aa0e30549cb3d17"
-
-LB_HOST = os.environ.get("LAKEBASE_HOST", "ep-icy-pond-d8d33jwn.database.us-east-2.cloud.databricks.com")
-LB_DB = os.environ.get("LAKEBASE_DB", "databricks_postgres")
-LB_SCHEMA = "email_to_quote"
+from config import (
+    WAREHOUSE_ID, DATABRICKS_PROFILE as PROFILE,
+    CATALOG as UC_CATALOG, SCHEMA as UC_SCHEMA,
+    LAKEBASE_HOST as LB_HOST, LAKEBASE_DB as LB_DB, LAKEBASE_SCHEMA as LB_SCHEMA,
+)
 
 # 12 per risk category × 10 categories = 120 base, add a few extras
 ORGS_PER_CATEGORY = 12

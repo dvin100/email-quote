@@ -10,9 +10,10 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-DATA_DIR = "/Users/david.vincent/vibe/mail2quote/data"
-PROFILE = "EMAIL_QUOTE"
-WAREHOUSE_ID = "6aa0e30549cb3d17"
+from config import WAREHOUSE_ID, DATABRICKS_PROFILE as PROFILE
+from pathlib import Path
+
+DATA_DIR = str(Path(__file__).resolve().parent / "data")
 
 def execute_sql(sql_file):
     """Execute a SQL file via the Databricks SQL Statements API."""
