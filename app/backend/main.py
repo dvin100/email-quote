@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO)
 # ---------------------------------------------------------------------------
 DB_HOST = os.environ.get(
     "LAKEBASE_HOST",
-    "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com",
+    "ep-icy-pond-d8d33jwn.database.us-east-2.cloud.databricks.com",
 )
 DB_NAME = os.environ.get("LAKEBASE_DB", "databricks_postgres")
 DB_SCHEMA = os.environ.get("LAKEBASE_SCHEMA", "email_to_quote")
@@ -39,7 +39,7 @@ ENDPOINT_RESOURCE = os.environ.get(
 # Workspace host where Lakebase lives (may differ from the App workspace)
 LAKEBASE_WORKSPACE_HOST = os.environ.get(
     "LAKEBASE_WORKSPACE_HOST",
-    "https://dbc-77550b22-6efb.cloud.databricks.com",
+    "https://dbc-d0045e0a-a058.cloud.databricks.com",
 )
 TOKEN_LIFETIME_SECONDS = 45 * 60  # refresh every 45 minutes
 

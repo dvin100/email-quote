@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 DATA_DIR = "/Users/david.vincent/vibe/mail2quote/data"
 PROFILE = "EMAIL_QUOTE"
-WAREHOUSE_ID = "9d37ebbf410ea6d5"
+WAREHOUSE_ID = "6aa0e30549cb3d17"
 
 def execute_sql(sql_file):
     """Execute a SQL file via the Databricks SQL Statements API."""

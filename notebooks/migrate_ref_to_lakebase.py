@@ -12,7 +12,7 @@ ENDPOINT_RESOURCE = os.environ.get(
     "LAKEBASE_ENDPOINT",
     "projects/emai2quote/branches/production/endpoints/primary",
 )
-LB_HOST = os.environ.get("LAKEBASE_HOST", "ep-bitter-term-d8cbhgar.database.us-east-2.cloud.databricks.com")
+LB_HOST = os.environ.get("LAKEBASE_HOST", "ep-icy-pond-d8d33jwn.database.us-east-2.cloud.databricks.com")
 LB_DB = os.environ.get("LAKEBASE_DB", "databricks_postgres")
 LB_SCHEMA = "email_to_quote"
 UC_CATALOG = "dvin100_email_to_quote"
